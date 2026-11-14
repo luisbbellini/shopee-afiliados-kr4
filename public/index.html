@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shopee Afiliados — Painel</title>
+<style>
+  :root{
+    --bg:#f6f6f4; --panel:#fff; --ink:#1c1c1a; --muted:#6b6b66; --line:#e4e3de; --soft:#efeee9;
+    --accent:#ee4d2d; --accent-ink:#fff; --ok:#1f8a4c; --warn:#b26b00; --err:#c0362c;
+    --r:10px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--muted:#9a9993;--line:#2e2e2b;--soft:#252523}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:-.01em}
+  header h1 span{color:var(--accent)}
+  .pill{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--soft);color:var(--muted)}
+  .pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.err{color:var(--err)}
+  .spacer{flex:1}
+  nav{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto}
+  nav button{border:0;background:none;padding:11px 12px;font:inherit;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+  main{padding:18px 20px;max-width:1500px;margin:0 auto}
+  section{display:none} section.on{display:block}
+  .form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
+  .f{display:flex;flex-direction:column;gap:4px;min-width:120px}
+  .f.grow{flex:1;min-width:200px}
+  .f label{font-size:12px;color:var(--muted)}
+  input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
+  textarea{font-family:var(--mono);font-size:12.5px;width:100%}
+  input:focus,select:focus,textarea:focus{outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:0;border-color:var(--accent)}
+  .chk{flex-direction:row;align-items:center;gap:6px;min-width:auto;padding-bottom:8px}
+  .b{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px;border-radius:7px;cursor:pointer;white-space:nowrap}
+  .b:hover{background:var(--soft)}
+  .p{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+  .p:hover{filter:brightness(.95);background:var(--accent)}
+  .sm{padding:4px 8px;font-size:12px}
+  button:disabled{opacity:.5;cursor:wait}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
+  .bar .info{color:var(--muted);font-size:13px}
+  .note{font-size:12.5px;padding:8px 12px;border-radius:8px;margin-bottom:12px;background:var(--soft);color:var(--muted)}
+  .note.err{color:var(--err)} .note.warn{color:var(--warn)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;cursor:pointer}
+  .card:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+  .card img{width:100%;aspect-ratio:1;object-fit:cover;background:var(--soft);display:block}
+  .card .c{padding:10px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .card .t{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
+  .price{font-weight:650;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--muted)}
+  .com{display:flex;justify-content:space-between;align-items:center;background:var(--soft);border-radius:6px;padding:5px 8px;font-size:12.5px}
+  .com b{color:var(--ok)}
+  .acts{display:flex;gap:6px;margin-top:auto}
+  .tw{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);max-height:70vh}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+  th{position:sticky;top:0;background:var(--panel);font-weight:600;color:var(--muted);cursor:pointer;user-select:none;z-index:1}
+  tbody tr:hover{background:var(--soft);cursor:pointer}
+  td img{width:34px;height:34px;object-fit:cover;border-radius:5px;display:block}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+  .kpi small{color:var(--muted);font-size:12px} .kpi div{font-size:20px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:900px){.two{grid-template-columns:1fr}}
+  h3{font-size:13px;margin:0 0 8px;color:var(--muted);font-weight:600}
+  pre{font-family:var(--mono);font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;overflow:auto;max-height:60vh;margin:0;white-space:pre-wrap;word-break:break-word}
+  .drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:var(--panel);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .2s ease;z-index:20;display:flex;flex-direction:column}
+  .drawer.on{transform:none}
+  .drawer .h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .drawer .h b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .drawer .bd{overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+  .drawer img.hero{width:100%;max-height:300px;object-fit:contain;background:var(--soft);border-radius:8px}
+  .kv{display:grid;grid-template-columns:minmax(130px,auto) 1fr;gap:0;font-size:12.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .kv div{padding:6px 10px;border-bottom:1px solid var(--line);word-break:break-all}
+  .kv div:nth-child(odd){color:var(--muted);background:var(--soft);font-family:var(--mono);font-size:12px}
+  .shade{position:fixed;inset:0;background:#0005;z-index:15;display:none} .shade.on{display:block}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30}
+  .toast.on{opacity:1}
+  .empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:var(--r)}
+  .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--soft);color:var(--muted)}
+  a{color:var(--accent)}
+  @media (max-width:640px){
+    header{padding:10px 14px;gap:8px} header h1{font-size:14px;white-space:nowrap}
+    #status{font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    nav{padding:0 8px;top:49px;position:sticky;z-index:4}
+    main{padding:12px}
+    .form{padding:12px;gap:8px}
+    .f{min-width:0;flex:1 1 calc(50% - 8px)} .f.grow{flex-basis:100%}
+    .f input,.f select{width:100% !important;font-size:16px}
+    .chk{flex-basis:100%;padding-bottom:0}
+    .form button.p{flex-basis:100%;padding:11px}
+    .grid{grid-template-columns:1fr 1fr;gap:8px}
+    .card .c{padding:8px;gap:4px} .card .t{font-size:12.5px} .price{font-size:14px}
+    .com{flex-direction:column;align-items:flex-start;gap:0;font-size:12px}
+    .acts .b{flex:1;text-align:center;padding:7px 4px}
+    .bar input{flex:1 1 100%;width:auto !important}
+    .kpis{grid-template-columns:1fr 1fr} .kpi div{font-size:17px}
+    .drawer{width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>●</span> Shopee Afiliados</h1>
+  <span id="status" class="pill">verificando…</span>
+  <div class="spacer"></div>
+  <button class="b sm" onclick="clearCache()">Limpar cache</button>
+  <button class="b sm" onclick="logout()" title="Esquecer a senha neste aparelho">Sair</button>
+</header>
+<nav id="tabs">
+  <button data-t="products" class="on">Produtos</button>
+  <button data-t="shops">Lojas</button>
+  <button data-t="offers">Campanhas Shopee</button>
+  <button data-t="links">Gerar links</button>
+  <button data-t="conversions">Conversões</button>
+  <button data-t="validated">Validados</button>
+  <button data-t="feeds">Feeds</button>
+  <button data-t="console">Console GraphQL</button>
+</nav>
+
+<main>
+<!-- PRODUTOS -->
+<section id="products" class="on">
+  <form class="form" data-api="products">
+    <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="ex: fone bluetooth"></div>
+    <div class="f"><label>Ordenar</label><select name="sortType">
+      <option value="1">Relevância</option><option value="2" selected>Mais vendidos</option>
+      <option value="5">Maior comissão</option><option value="3">Maior preço</option><option value="4">Menor preço</option></select></div>
+    <div class="f"><label>Lista</label><select name="listType">
+      <option value="">Padrão</option><option value="0">Todos</option><option value="1">Maior comissão</option>
+      <option value="2">Top performance</option><option value="3">Categoria (landing)</option><option value="4">Categoria</option><option value="5">Loja</option></select></div>
+    <div class="f"><label>ID da loja</label><input name="shopId" inputmode="numeric" style="width:120px"></div>
+    <div class="f"><label>ID do item</label><input name="itemId" inputmode="numeric" style="width:130px"></div>
+    <div class="f"><label>ID categoria</label><input name="productCatId" inputmode="numeric" style="width:110px"></div>
+    <div class="f"><label>Por página</label><input name="limit" type="number" value="50" min="1" max="50" style="width:80px"></div>
+    <div class="f"><label>Página</label><input name="page" type="number" value="1" min="1" style="width:70px"></div>
+    <label class="f chk"><input type="checkbox" name="isAMSOffer"> Só AMS (comissão extra do vendedor)</label>
+    <label class="f chk"><input type="checkbox" name="isKeySeller"> Só vendedores-chave</label>
+    <label class="f chk"><input type="checkbox" name="allPages"> Todas as páginas</label>
+    <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="5" min="1" max="50" style="width:80px"></div>
+    <button class="b p">Buscar produtos</button>
+  </form>
+  <div class="out"></div>
+</section>
+
+<!-- LOJAS -->
+<section id="shops">
+  <form class="form" data-api="shops">
+    <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="nome da loja"></div>
+    <div class="f"><label>Ordenar</label><select name="sortType"><option value="2">Maior comissão</option><option value="3">Populares</option><option value="1">Mais recentes</option></select></div>
+    <div class="f"><label>Tipo</label><select name="shopType"><option value="">Todas</option><option value="1">Mall</option><option value="2">Star</option><option value="4">Star+</option></select></div>
+    <div class="f"><label>ID da loja</label><input name="shopId" inputmode="numeric" style="width:120px"></div>
+    <div class="f"><label>Por página</label><input name="limit" type="number" value="50" min="1" max="50" style="width:80px"></div>
+    <div class="f"><label>Página</label><input name="page" type="number" value="1" min="1" style="width:70px"></div>
+    <label class="f chk"><input type="checkbox" name="isKeySeller"> Só vendedores-chave</label>
+    <label class="f chk"><input type="checkbox" name="allPages"> Todas as páginas</label>
+    <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="5" style="width:80px"></div>
+    <button class="b p">Buscar lojas</button>
+  </form>
+  <div class="out"></div>
+</section>
+
+<!-- CAMPANHAS -->
+<section id="offers">
+  <form class="form" data-api="offers">
+    <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="ex: beleza, 12.12"></div>
+    <div class="f"><label>Ordenar</label><select name="sortType"><option value="2">Maior comissão</option><option value="1">Mais recentes</option></select></div>
+    <div class="f"><label>Por página</label><input name="limit" type="number" value="50" style="width:80px"></div>
+    <div class="f"><label>Página</label><input name="page" type="number" value="1" style="width:70px"></div>
+    <label class="f chk"><input type="checkbox" name="allPages"> Todas as páginas</label>
+    <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="5" style="width:80px"></div>
+    <button class="b p">Buscar campanhas</button>
+  </form>
+  <div class="out"></div>
+</section>
+
+<!-- LINKS -->
+<section id="links">
+  <form class="form" id="linkForm">
+    <div class="f grow" style="flex-basis:100%"><label>URLs da Shopee (uma por linha, até 50)</label>
+      <textarea name="urls" rows="6" placeholder="https://shopee.com.br/produto-i.123.456"></textarea></div>
+    <div class="f"><label>subId 1 (ex: vídeo)</label><input name="s1" placeholder="video001"></div>
+    <div class="f"><label>subId 2 (ex: canal)</label><input name="s2" placeholder="tiktok"></div>
+    <div class="f"><label>subId 3</label><input name="s3"></div>
+    <div class="f"><label>subId 4</label><input name="s4"></div>
+    <div class="f"><label>subId 5</label><input name="s5"></div>
+    <button class="b p">Gerar links curtos</button>
+  </form>
+  <div class="note">Os subIds aparecem depois no relatório de conversões (campo <b>utmContent</b>) — use para saber qual vídeo vendeu.</div>
+  <div class="out"></div>
+</section>
+
+<!-- CONVERSÕES -->
+<section id="conversions">
+  <form class="form" data-api="conversions">
+    <div class="f"><label>Compra de</label><input type="date" name="start"></div>
+    <div class="f"><label>Compra até</label><input type="date" name="end"></div>
+    <div class="f"><label>Status do pedido</label><select name="orderStatus"><option value="">Todos</option><option>PENDING</option><option>COMPLETED</option><option>CANCELLED</option><option>UNPAID</option></select></div>
+    <div class="f"><label>Comprador</label><select name="buyerType"><option value="">Todos</option><option>NEW</option><option>EXISTING</option></select></div>
+    <div class="f"><label>Dispositivo</label><select name="device"><option value="">Todos</option><option>APP</option><option>WEB</option></select></div>
+    <div class="f"><label>Loja</label><input name="shopName"></div>
+    <div class="f"><label>Produto</label><input name="productName"></div>
+    <div class="f"><label>Pedido</label><input name="orderId"></div>
+    <label class="f chk"><input type="checkbox" name="allPages" checked> Todas as páginas</label>
+    <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="20" style="width:80px"></div>
+    <button class="b p">Buscar conversões</button>
+  </form>
+  <div class="note">O período máximo por consulta costuma ser de 3 meses; dados recentes podem levar algumas horas para aparecer.</div>
+  <div class="out"></div>
+</section>
+
+<!-- VALIDADOS -->
+<section id="validated">
+  <form class="form" data-api="validated">
+    <div class="f"><label>Validation ID</label><input name="validationId" inputmode="numeric" placeholder="do painel de pagamentos"></div>
+    <label class="f chk"><input type="checkbox" name="allPages" checked> Todas as páginas</label>
+    <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="20" style="width:80px"></div>
+    <button class="b p">Buscar validados</button>
+  </form>
+  <div class="out"></div>
+</section>
+
+<!-- FEEDS -->
+<section id="feeds">
+  <form class="form" data-api="feeds">
+    <div class="f"><label>Modo</label><select name="feedMode"><option>FULL</option><option>DELTA</option></select></div>
+    <button class="b p">Listar feeds</button>
+  </form>
+  <div class="note">Feeds são catálogos em massa. Nem toda conta tem acesso — se vier erro de permissão, é limitação da conta.</div>
+  <div class="out"></div>
+</section>
+
+<!-- CONSOLE -->
+<section id="console">
+  <div class="two">
+    <div>
+      <h3>Consulta GraphQL</h3>
+      <div class="bar">
+        <select id="tpl" onchange="loadTpl()">
+          <option value="">Modelos…</option><option>productOfferV2</option><option>shopOfferV2</option>
+          <option>shopeeOfferV2</option><option>generateShortLink</option><option>conversionReport</option><option>__typename</option>
+        </select>
+        <button class="b p" onclick="runConsole()">Executar</button>
+        <button class="b" onclick="introspect()">Descobrir schema</button>
+      </div>
+      <textarea id="gq" rows="20">{ productOfferV2(keyword: "garrafa", sortType: 2, limit: 5) { nodes { itemId productName priceMin commissionRate sales } pageInfo { page hasNextPage } } }</textarea>
+    </div>
+    <div><h3>Resposta</h3><pre id="gout">—</pre></div>
+  </div>
+  <div id="schema" style="margin-top:14px"></div>
+</section>
+</main>
+
+<div class="shade" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="h"><b id="dTitle">Detalhes</b><button class="b sm" onclick="copyJSON()">Copiar JSON</button><button class="b sm" onclick="closeDrawer()">Fechar</button></div>
+  <div class="bd" id="dBody"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- helpers ---------------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const brl = (v) => (v === undefined || v === null || v === '' || isNaN(+v)) ? '—' : BRL.format(+v);
+const pct = (v) => (v === undefined || v === null || v === '' || isNaN(+v)) ? '—' : (+v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%';
+const int = (v) => (v === undefined || v === null || isNaN(+v)) ? '—' : (+v).toLocaleString('pt-BR');
+const dt = (s) => s ? new Date(+s * 1000).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+const SHOPTYPE = { 1: 'Mall', 2: 'Star', 4: 'Star+' };
+const shopType = (v) => [].concat(v ?? []).map((x) => SHOPTYPE[x] || x).join(', ') || '—';
+const TIME_KEYS = /Time$|^date$/;
+const MONEY_KEYS = /^(price|commission|.*Commission$|.*Amount$|itemPrice|.*Fee$|grossCommission|.*CommissionCapped)/i;
+const RATE_KEYS = /Rate$|Ratio$/;
+let state = {};          // dados por aba
+let current = null;      // item no drawer
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1800); }
+async function copy(txt) { try { await navigator.clipboard.writeText(txt); toast('Copiado'); } catch { prompt('Copie:', txt); } }
+function getKey() { try { return localStorage.getItem('panelKey') || ''; } catch { return window._k || ''; } }
+function setKey(k) { try { localStorage.setItem('panelKey', k); } catch { window._k = k; } }
+async function api(path, body, retry = true) {
+  const r = await fetch('/api/' + path, { method: body === undefined ? 'GET' : 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey() },
+    body: body === undefined ? undefined : JSON.stringify(body) });
+  const j = await r.json();
+  if (r.status === 401 && retry) {
+    const k = prompt('Senha do painel:');
+    if (k) { setKey(k.trim()); return api(path, body, false); }
+  }
+  return j;
+}
+function logout() { setKey(''); toast('Senha removida deste aparelho'); }
+function formData(form) {
+  const o = {};
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    if (el.type === 'checkbox') { if (el.checked) o[el.name] = true; }
+    else if (el.value !== '') o[el.name] = el.value;
+  }
+  return o;
+}
+function fmtVal(k, v) {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  if (TIME_KEYS.test(k) && /^\d{9,}$/.test(String(v))) return dt(v) + `  (${v})`;
+  if (k === 'priceDiscountRate') return v + '%';
+  if (RATE_KEYS.test(k)) return pct(v);
+  if (MONEY_KEYS.test(k) && !isNaN(+v)) return brl(v);
+  if (k === 'shopType') return shopType(v);
+  return String(v);
+}
+function flatten(o, pre = '', out = {}) {
+  for (const [k, v] of Object.entries(o || {})) {
+    const key = pre ? pre + '.' + k : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flatten(v, key, out);
+    else if (Array.isArray(v) && v.some((x) => x && typeof x === 'object')) out[key] = JSON.stringify(v);
+    else out[key] = Array.isArray(v) ? v.join('|') : v;
+  }
+  return out;
+}
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+}
+function toCSV(rows) {
+  const flat = rows.map((r) => flatten(r));
+  const cols = [...new Set(flat.flatMap(Object.keys))];
+  const q = (v) => { const s = v === undefined || v === null ? '' : String(v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return '﻿' + [cols.join(';'), ...flat.map((r) => cols.map((c) => q(r[c])).join(';'))].join('\n');
+}
+
+/* ---------------- tabs ---------------- */
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
+  $$('main section').forEach((s) => s.classList.toggle('on', s.id === b.dataset.t));
+});
+
+/* ---------------- status ---------------- */
+(async () => {
+  try {
+    const s = await api('status');
+    const el = $('#status');
+    el.textContent = s.mock ? 'Modo de teste (dados falsos)' : 'App ID ' + s.appId;
+    el.className = 'pill ' + (s.mock ? 'warn' : 'ok');
+  } catch { $('#status').textContent = 'Servidor offline'; $('#status').className = 'pill err'; }
+})();
+// Conversões: últimos 30 dias por padrão
+(() => { const f = $('#conversions form'); const d = (x) => x.toISOString().slice(0, 10);
+  f.end.value = d(new Date()); f.start.value = d(new Date(Date.now() - 30 * 86400000)); })();
+async function clearCache() { await api('cache/clear', {}); toast('Cache limpo'); }
+
+/* ---------------- buscas ---------------- */
+$$('form[data-api]').forEach((form) => form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const tab = form.dataset.api;
+  const body = formData(form);
+  if (tab === 'conversions') {
+    if (body.start) body.purchaseTimeStart = Math.floor(new Date(body.start + 'T00:00:00').getTime() / 1000);
+    if (body.end) body.purchaseTimeEnd = Math.floor(new Date(body.end + 'T23:59:59').getTime() / 1000);
+    delete body.start; delete body.end;
+  }
+  const btn = $('button.p', form); const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Buscando…';
+  const out = $('.out', form.parentElement);
+  try {
+    const r = await api(tab, body);
+    state[tab] = { ...r, nodes: r.nodes || [], view: state[tab]?.view || (['products'].includes(tab) ? 'cards' : 'table'), filter: '' };
+    render(tab);
+  } catch (err) {
+    out.innerHTML = `<div class="note err">${esc(err.message)}</div>`;
+  } finally { btn.disabled = false; btn.textContent = label; }
+}));
+
+function notes(r) {
+  let h = '';
+  if (r.errors?.length) h += `<div class="note err"><b>Erro da API:</b> ${esc(r.errors.map((e) => e.message + (e.extensions?.code ? ' [' + e.extensions.code + ']' : '')).join(' · '))}</div>`;
+  if (r.stripped?.length) h += `<div class="note warn">Campos que a API não aceitou e foram removidos automaticamente: ${r.stripped.map((f) => '<span class="tag">' + esc(f) + '</span>').join(' ')}</div>`;
+  return h;
+}
+
+function render(tab) {
+  const r = state[tab]; const out = $(`#${tab} .out`);
+  if (tab === 'conversions' || tab === 'validated') return renderReport(tab, r, out);
+  if (tab === 'feeds') return renderFeeds(r, out);
+  const f = (r.filter || '').toLowerCase();
+  let rows = r.nodes.filter((n) => !f || JSON.stringify(n).toLowerCase().includes(f));
+  if (r.sort) rows = sortRows(rows, r.sort);
+  const pi = r.pageInfo;
+  out.innerHTML = notes(r) + `
+    <div class="bar">
+      <span class="info">${int(rows.length)} de ${int(r.nodes.length)} itens${r.pages ? ` · ${r.pages} página(s)` : ''}${pi ? ` · página ${pi.page ?? '—'}${pi.hasNextPage ? ' · tem mais' : ''}` : ''}${r.cached ? ' · cache' : ''} · ${r.ms ?? 0} ms</span>
+      <span class="spacer" style="flex:1"></span>
+      <input placeholder="Filtrar resultados…" value="${esc(r.filter)}" oninput="state.${tab}.filter=this.value;render('${tab}');this.focus();this.setSelectionRange(this.value.length,this.value.length)" style="width:200px">
+      ${tab === 'products' ? `<button class="b sm" onclick="state.${tab}.view=state.${tab}.view==='cards'?'table':'cards';render('${tab}')">${r.view === 'cards' ? 'Ver tabela' : 'Ver cards'}</button>` : ''}
+      ${pi?.hasNextPage ? `<button class="b sm" onclick="nextPage('${tab}')">Próxima página →</button>` : ''}
+      <button class="b sm" onclick="download('${tab}.csv',toCSV(state.${tab}.nodes),'text/csv')">CSV</button>
+      <button class="b sm" onclick="download('${tab}.json',JSON.stringify(state.${tab}.nodes,null,2),'application/json')">JSON</button>
+    </div>` + (rows.length ? (tab === 'products' && r.view === 'cards' ? productCards(rows) : table(tab, rows)) : '<div class="empty">Nenhum resultado.</div>');
+}
+
+function nextPage(tab) {
+  const form = $(`#${tab} form`); const p = form.elements.page; p.value = (+p.value || 1) + 1;
+  form.requestSubmit();
+}
+
+function productCards(rows) {
+  return '<div class="grid">' + rows.map((n, i) => `
+    <div class="card" onclick="openItem('products',${state.products.nodes.indexOf(n)})">
+      <img loading="lazy" src="${esc(n.imageUrl)}" alt="">
+      <div class="c">
+        <div class="t">${esc(n.productName)}</div>
+        <div class="price">${brl(n.priceMin)}${n.priceMax && n.priceMax !== n.priceMin ? ' <span class="meta" style="display:inline">até ' + brl(n.priceMax) + '</span>' : ''}</div>
+        <div class="meta"><span>${int(n.sales)} vendidos</span><span>★ ${n.ratingStar ? (+n.ratingStar).toFixed(1) : '—'}</span>${n.priceDiscountRate ? `<span>-${n.priceDiscountRate}%</span>` : ''}</div>
+        <div class="com"><span>Comissão ${pct(n.commissionRate)}</span><b>${brl(n.commission)}</b></div>
+        <div class="meta"><span>${esc(n.shopName || '')}</span><span>${shopType(n.shopType)}</span></div>
+        <div class="acts" onclick="event.stopPropagation()">
+          <button class="b sm" onclick="copy('${esc(n.offerLink)}')">Copiar link</button>
+          <a class="b sm" style="text-decoration:none;color:inherit" href="${esc(n.productLink)}" target="_blank" rel="noopener">Abrir</a>
+        </div>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+const COLS = {
+  products: [['imageUrl', ''], ['productName', 'Produto'], ['priceMin', 'Preço', 'num'], ['sales', 'Vendas', 'num'], ['ratingStar', 'Nota', 'num'],
+    ['commissionRate', 'Comissão %', 'num'], ['commission', 'Comissão R$', 'num'], ['sellerCommissionRate', 'Vendedor %', 'num'], ['shopeeCommissionRate', 'Shopee %', 'num'],
+    ['shopName', 'Loja'], ['shopType', 'Tipo'], ['itemId', 'Item ID'], ['periodEndTime', 'Válido até']],
+  shops: [['imageUrl', ''], ['shopName', 'Loja'], ['shopType', 'Tipo'], ['ratingStar', 'Nota', 'num'], ['commissionRate', 'Comissão', 'num'],
+    ['sellerCommCoveRatio', 'Cobertura', 'num'], ['remainingBudget', 'Orçamento'], ['shopId', 'Shop ID'], ['periodEndTime', 'Válido até']],
+  offers: [['imageUrl', ''], ['offerName', 'Campanha'], ['commissionRate', 'Comissão', 'num'], ['offerType', 'Tipo'],
+    ['categoryId', 'Categoria'], ['collectionId', 'Coleção'], ['periodStartTime', 'Início'], ['periodEndTime', 'Fim']],
+};
+function cell(k, v) {
+  if (k === 'imageUrl') return v ? `<img loading="lazy" src="${esc(v)}" alt="">` : '';
+  if (k === 'ratingStar') return v ? (+v).toFixed(1) : '—';
+  if (k === 'sales') return int(v);
+  if (k === 'remainingBudget') return ({ 0: 'Ilimitado', 1: 'Normal', 2: 'Baixo', 3: 'Esgotado' })[v] ?? esc(v);
+  if (TIME_KEYS.test(k)) return v ? new Date(+v * 1000).toLocaleDateString('pt-BR') : '—';
+  return esc(fmtVal(k, v));
+}
+function table(tab, rows) {
+  const cols = COLS[tab] || Object.keys(rows[0] || {}).map((k) => [k, k]);
+  const s = state[tab].sort || {};
+  return `<div class="tw"><table><thead><tr>${cols.map(([k, l, c]) => `<th class="${c || ''}" onclick="sortBy('${tab}','${k}')">${esc(l)}${s.k === k ? (s.d > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map((n) => `<tr onclick="openItem('${tab}',${state[tab].nodes.indexOf(n)})">${cols.map(([k, , c]) => `<td class="${c || ''}">${cell(k, n[k])}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>';
+}
+function sortBy(tab, k) {
+  const s = state[tab].sort; state[tab].sort = { k, d: s && s.k === k ? -s.d : -1 }; render(tab);
+}
+function sortRows(rows, { k, d }) {
+  return [...rows].sort((a, b) => {
+    const x = a[k], y = b[k];
+    const nx = +x, ny = +y;
+    if (!isNaN(nx) && !isNaN(ny)) return (nx - ny) * d;
+    return String(x ?? '').localeCompare(String(y ?? '')) * d;
+  });
+}
+
+/* ---------------- relatórios ---------------- */
+function reportItems(nodes) {
+  const items = [];
+  for (const c of nodes) for (const o of c.orders || []) for (const it of o.items || [])
+    items.push({ ...it, orderId: o.orderId, orderStatus: o.orderStatus, purchaseTime: c.purchaseTime, clickTime: c.clickTime,
+      conversionId: c.conversionId, utmContent: c.utmContent, device: c.device, buyerType: c.buyerType, referrer: c.referrer });
+  return items;
+}
+function renderReport(tab, r, out) {
+  const items = reportItems(r.nodes);
+  const sum = (arr, k) => arr.reduce((a, x) => a + (+x[k] || 0), 0);
+  const orders = new Set(items.map((i) => i.orderId)).size;
+  const by = (key, valKey) => {
+    const m = {}; for (const i of items) { const g = i[key] || '(sem)'; m[g] ??= { n: 0, v: 0, gmv: 0 }; m[g].n++; m[g].v += +i[valKey] || 0; m[g].gmv += +i.actualAmount || 0; }
+    return Object.entries(m).sort((a, b) => b[1].v - a[1].v);
+  };
+  const grp = (title, rows) => `<div><h3>${title}</h3><div class="tw" style="max-height:300px"><table><thead><tr><th>Grupo</th><th class="num">Itens</th><th class="num">Vendas</th><th class="num">Comissão</th></tr></thead><tbody>${rows.slice(0, 50).map(([g, v]) => `<tr><td>${esc(g)}</td><td class="num">${v.n}</td><td class="num">${brl(v.gmv)}</td><td class="num">${brl(v.v)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const f = (r.filter || '').toLowerCase();
+  let shown = items.filter((i) => !f || JSON.stringify(i).toLowerCase().includes(f));
+  if (r.sort) shown = sortRows(shown, r.sort);
+  state[tab].items = items;
+  const cols = [['imageUrl', ''], ['purchaseTime', 'Compra'], ['itemName', 'Produto'], ['shopName', 'Loja'], ['qty', 'Qtd', 'num'], ['actualAmount', 'Valor', 'num'],
+    ['itemTotalCommission', 'Comissão', 'num'], ['orderStatus', 'Status'], ['displayItemStatus', 'Status item'], ['utmContent', 'subId / utm'], ['device', 'Disp.'], ['buyerType', 'Comprador'], ['orderId', 'Pedido']];
+  out.innerHTML = notes(r) + `
+    <div class="kpis">
+      <div class="kpi"><small>Pedidos</small><div>${int(orders)}</div></div>
+      <div class="kpi"><small>Itens</small><div>${int(items.length)}</div></div>
+      <div class="kpi"><small>Valor vendido</small><div>${brl(sum(items, 'actualAmount'))}</div></div>
+      <div class="kpi"><small>Comissão estimada</small><div>${brl(sum(r.nodes, 'estimatedTotalCommission') || sum(items, 'itemTotalCommission'))}</div></div>
+      <div class="kpi"><small>Comissão líquida</small><div>${brl(sum(r.nodes, 'netCommission'))}</div></div>
+    </div>
+    <div class="two" style="margin-bottom:14px">${grp('Por subId / utmContent (qual vídeo vendeu)', by('utmContent', 'itemTotalCommission'))}${grp('Por produto', by('itemName', 'itemTotalCommission'))}</div>
+    <div class="bar"><span class="info">${int(shown.length)} itens · ${r.pages ?? 1} página(s) · ${r.ms ?? 0} ms</span><span style="flex:1"></span>
+      <input placeholder="Filtrar…" value="${esc(r.filter)}" oninput="state.${tab}.filter=this.value;render('${tab}');this.focus();this.setSelectionRange(this.value.length,this.value.length)" style="width:200px">
+      <button class="b sm" onclick="download('${tab}-itens.csv',toCSV(state.${tab}.items),'text/csv')">CSV (itens)</button>
+      <button class="b sm" onclick="download('${tab}.json',JSON.stringify(state.${tab}.nodes,null,2),'application/json')">JSON bruto</button></div>
+    ${shown.length ? `<div class="tw"><table><thead><tr>${cols.map(([k, l, c]) => `<th class="${c || ''}" onclick="sortBy('${tab}','${k}')">${l}</th>`).join('')}</tr></thead><tbody>${shown.map((i) => `<tr onclick='openObj(${esc(JSON.stringify(i))})'>${cols.map(([k, , c]) => `<td class="${c || ''}">${k === 'purchaseTime' ? dt(i[k]) : cell(k, i[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">Nenhuma conversão no período.</div>'}`;
+}
+
+function renderFeeds(r, out) {
+  out.innerHTML = notes(r) + (r.nodes.length ? `<div class="tw"><table><thead><tr><th>Feed</th><th>Descrição</th><th>Data</th><th>Modo</th><th class="num">Itens</th><th></th></tr></thead><tbody>${r.nodes.map((f) =>
+    `<tr><td>${esc(f.datafeedName || f.datafeedId)}</td><td>${esc(f.description)}</td><td>${esc(f.date)}</td><td>${esc(f.feedMode)}</td><td class="num">${int(f.totalCount)}</td><td><button class="b sm" onclick="feedData('${esc(f.datafeedId)}')">Ver itens</button></td></tr>`).join('')}</tbody></table></div><div id="feedRows" style="margin-top:14px"></div>` : '<div class="empty">Nenhum feed.</div>');
+}
+async function feedData(id) {
+  const r = await api('feed-data', { datafeedId: id, limit: 200 });
+  const rows = (r.data?.getItemFeedData?.rows || []).map((x) => { try { return JSON.parse(x.columns); } catch { return x; } });
+  $('#feedRows').innerHTML = notes(r) + `<div class="bar"><span class="info">${rows.length} linhas</span><button class="b sm" onclick='download("feed.json",${esc(JSON.stringify(JSON.stringify(rows)))},"application/json")'>JSON</button></div><pre>${esc(JSON.stringify(rows.slice(0, 50), null, 2))}</pre>`;
+}
+
+/* ---------------- links ---------------- */
+$('#linkForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target; const urls = f.urls.value.split(/\s+/).filter((u) => /^https?:\/\//.test(u));
+  if (!urls.length) return toast('Cole pelo menos uma URL');
+  const subIds = ['s1', 's2', 's3', 's4', 's5'].map((k) => f[k].value.trim()).filter(Boolean);
+  const btn = $('button.p', f); btn.disabled = true; btn.textContent = 'Gerando…';
+  const r = await api('shortlinks', { urls, subIds });
+  btn.disabled = false; btn.textContent = 'Gerar links curtos';
+  state.links = { nodes: r.data || [] };
+  $('#links .out').innerHTML = `<div class="bar"><button class="b sm" onclick="copy(state.links.nodes.map(x=>x.shortLink).filter(Boolean).join('\\n'))">Copiar todos</button><button class="b sm" onclick="download('links.csv',toCSV(state.links.nodes),'text/csv')">CSV</button></div>
+    <div class="tw"><table><thead><tr><th>Original</th><th>Link curto</th><th></th></tr></thead><tbody>${(r.data || []).map((x) =>
+    `<tr><td>${esc(x.originUrl)}</td><td>${x.shortLink ? `<a href="${esc(x.shortLink)}" target="_blank">${esc(x.shortLink)}</a>` : `<span style="color:var(--err)">${esc(x.error || 'erro')}</span>`}</td><td>${x.shortLink ? `<button class="b sm" onclick="copy('${esc(x.shortLink)}')">Copiar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+});
+
+// Gera link curto de um produto direto do drawer
+async function quickLink(url) {
+  const sub = prompt('subId (ex: nome do vídeo) — opcional', '') ?? '';
+  const r = await api('shortlink', { originUrl: url, subIds: sub ? [sub] : [] });
+  const link = r.data?.generateShortLink?.shortLink;
+  if (link) { copy(link); $('#qlink').innerHTML = `<a href="${esc(link)}" target="_blank">${esc(link)}</a>`; }
+  else toast(r.errors?.[0]?.message || 'Erro ao gerar link');
+}
+
+/* ---------------- drawer ---------------- */
+function openItem(tab, i) { openObj(state[tab].nodes[i]); }
+function openObj(o) {
+  current = o;
+  const title = o.productName || o.shopName || o.offerName || o.itemName || 'Detalhes';
+  $('#dTitle').textContent = title;
+  const link = o.offerLink || o.productLink || o.originalLink;
+  $('#dBody').innerHTML = `
+    ${o.imageUrl ? `<img class="hero" src="${esc(o.imageUrl)}" alt="">` : ''}
+    ${link ? `<div class="bar">
+      ${o.offerLink ? `<button class="b sm" onclick="copy('${esc(o.offerLink)}')">Copiar link de afiliado</button>` : ''}
+      ${o.productLink || o.originalLink ? `<button class="b sm p" onclick="quickLink('${esc(o.productLink || o.originalLink)}')">Gerar link curto c/ subId</button>` : ''}
+      ${o.productLink || o.originalLink ? `<a class="b sm" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="${esc(o.productLink || o.originalLink)}">Abrir na Shopee</a>` : ''}
+      ${o.shopId && o.productName ? `<button class="b sm" onclick="moreFromShop(${+o.shopId})">Mais desta loja</button>` : ''}
+      </div><div id="qlink" class="meta"></div>` : ''}
+    <div class="kv">${Object.entries(flatten(o)).map(([k, v]) => `<div>${esc(k)}</div><div>${esc(fmtVal(k.split('.').pop(), v))}</div>`).join('')}</div>
+    <details><summary class="meta" style="cursor:pointer">JSON bruto</summary><pre>${esc(JSON.stringify(o, null, 2))}</pre></details>`;
+  $('#drawer').classList.add('on'); $('.shade').classList.add('on');
+}
+function closeDrawer() { $('#drawer').classList.remove('on'); $('.shade').classList.remove('on'); }
+function copyJSON() { if (current) copy(JSON.stringify(current, null, 2)); }
+function moreFromShop(id) {
+  closeDrawer(); const f = $('#products form');
+  f.reset(); f.shopId.value = id; f.listType.value = '5'; f.requestSubmit();
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+/* ---------------- console ---------------- */
+const TPL = {
+  productOfferV2: '{ productOfferV2(keyword: "fone", sortType: 5, page: 1, limit: 10) {\n  nodes { itemId productName priceMin priceMax sales ratingStar commissionRate commission shopName offerLink imageUrl }\n  pageInfo { page limit hasNextPage }\n} }',
+  shopOfferV2: '{ shopOfferV2(sortType: 2, page: 1, limit: 10) {\n  nodes { shopId shopName commissionRate ratingStar offerLink }\n  pageInfo { page hasNextPage }\n} }',
+  shopeeOfferV2: '{ shopeeOfferV2(sortType: 2, page: 1, limit: 10) {\n  nodes { offerName commissionRate offerLink periodEndTime }\n  pageInfo { page hasNextPage }\n} }',
+  generateShortLink: 'mutation { generateShortLink(input: { originUrl: "https://shopee.com.br/", subIds: ["teste"] }) { shortLink } }',
+  conversionReport: `{ conversionReport(purchaseTimeStart: ${Math.floor(Date.now() / 1000) - 30 * 86400}, purchaseTimeEnd: ${Math.floor(Date.now() / 1000)}, limit: 50) {\n  nodes { purchaseTime conversionId totalCommission utmContent orders { orderId orderStatus items { itemName actualAmount itemTotalCommission } } }\n  pageInfo { hasNextPage scrollId }\n} }`,
+  __typename: '{ __typename }',
+};
+function loadTpl() { const v = $('#tpl').value; if (TPL[v]) $('#gq').value = TPL[v]; }
+async function runConsole() {
+  $('#gout').textContent = 'Executando…';
+  const r = await api('graphql', { query: $('#gq').value });
+  $('#gout').textContent = JSON.stringify(r, null, 2);
+}
+async function introspect() {
+  $('#schema').innerHTML = '<div class="note">Consultando schema…</div>';
+  const r = await api('introspect', {});
+  const types = r.data?.__schema?.types;
+  if (!types) { $('#schema').innerHTML = `<div class="note warn">A Shopee não liberou a introspecção: ${esc(r.errors?.[0]?.message || 'sem resposta')}. Use os modelos acima.</div>`; return; }
+  const tn = (t) => t ? (t.name || tn(t.ofType)) + (t.kind === 'LIST' ? '[]' : t.kind === 'NON_NULL' ? '!' : '') : '';
+  const own = types.filter((t) => !t.name.startsWith('__') && ['OBJECT', 'INPUT_OBJECT', 'ENUM'].includes(t.kind));
+  $('#schema').innerHTML = `<div class="bar"><span class="info">${own.length} tipos</span><button class="b sm" onclick='download("schema.json",JSON.stringify(${esc(JSON.stringify(r.data))},null,2),"application/json")'>Baixar schema</button></div>` +
+    '<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">' + own.map((t) => `<div class="kpi"><b>${esc(t.name)}</b> <span class="tag">${t.kind}</span>
+      <div style="font-size:12px;font-weight:400;font-family:var(--mono);margin-top:6px">${(t.fields || t.inputFields || []).map((f) => `${esc(f.name)}${f.args?.length ? '(' + f.args.map((a) => esc(a.name)).join(', ') + ')' : ''}: <span style="color:var(--muted)">${esc(tn(f.type))}</span>`).join('<br>')}${(t.enumValues || []).map((e) => esc(e.name)).join('<br>')}</div></div>`).join('') + '</div>';
+}
+</script>
+</body>
+</html>

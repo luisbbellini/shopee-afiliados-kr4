@@ -1,0 +1,13 @@
+{
+  "name": "shopee-afiliados",
+  "version": "1.0.0",
+  "description": "Base do sistema de afiliados Shopee — cliente da Affiliate Open API + painel",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "mock": "SHOPEE_MOCK=1 node server.js",
+    "mock:win": "set SHOPEE_MOCK=1&& node server.js"
+  }
+}
