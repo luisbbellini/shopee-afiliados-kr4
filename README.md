@@ -1,5 +1,7 @@
 # Shopee Afiliados — base do sistema
 
+Painel publicado em https://shopee-afiliados-kr4.vercel.app
+
 Cliente Node da **Shopee Affiliate Open API (Brasil)** + painel web para navegar pelos dados.
 Sem dependências: só precisa do Node 18 ou mais novo.
 
