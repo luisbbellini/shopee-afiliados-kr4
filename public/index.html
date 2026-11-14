@@ -92,7 +92,8 @@
     .form{padding:12px;gap:8px}
     .f{min-width:0;flex:1 1 calc(50% - 8px)} .f.grow{flex-basis:100%}
     .f input,.f select{width:100% !important;font-size:16px}
-    .chk{flex-basis:100%;padding-bottom:0}
+    .chk{flex-basis:100%;padding-bottom:0;justify-content:flex-start}
+    .chk input{width:auto !important;flex:none}
     .form button.p{flex-basis:100%;padding:11px}
     .grid{grid-template-columns:1fr 1fr;gap:8px}
     .card .c{padding:8px;gap:4px} .card .t{font-size:12.5px} .price{font-size:14px}
@@ -247,6 +248,7 @@
         </select>
         <button class="b p" onclick="runConsole()">Executar</button>
         <button class="b" onclick="introspect()">Descobrir schema</button>
+        <button class="b" onclick="diagnose()">Diagnóstico</button>
       </div>
       <textarea id="gq" rows="20">{ productOfferV2(keyword: "garrafa", sortType: 2, limit: 5) { nodes { itemId productName priceMin commissionRate sales } pageInfo { page hasNextPage } } }</textarea>
     </div>
@@ -381,6 +383,7 @@ $$('form[data-api]').forEach((form) => form.addEventListener('submit', async (e)
 function notes(r) {
   let h = '';
   if (r.errors?.length) h += `<div class="note err"><b>Erro da API:</b> ${esc(r.errors.map((e) => e.message + (e.extensions?.code ? ' [' + e.extensions.code + ']' : '')).join(' · '))}</div>`;
+  if (r.diagnostic?.length) h += `<div class="note warn"><b>Ajuste automático:</b> ${r.diagnostic.map(esc).join('<br>')}</div>`;
   if (r.stripped?.length) h += `<div class="note warn">Campos que a API não aceitou e foram removidos automaticamente: ${r.stripped.map((f) => '<span class="tag">' + esc(f) + '</span>').join(' ')}</div>`;
   return h;
 }
@@ -577,6 +580,14 @@ async function runConsole() {
   $('#gout').textContent = 'Executando…';
   const r = await api('graphql', { query: $('#gq').value });
   $('#gout').textContent = JSON.stringify(r, null, 2);
+}
+async function diagnose() {
+  $('#schema').innerHTML = '<div class="note">Rodando testes na Shopee (uns 20 segundos)…</div>';
+  const r = await api('diagnose', {});
+  const t = r.tests || [];
+  $('#schema').innerHTML = notes(r) + `<div class="bar"><span class="info">${t.filter((x) => x.ok).length} de ${t.length} testes ok</span></div>
+    <div class="tw"><table><thead><tr><th>Teste</th><th>Resultado</th><th>Erro</th></tr></thead><tbody>${t.map((x) =>
+    `<tr><td>${esc(x.name)}</td><td style="color:var(${x.ok ? '--ok' : '--err'})">${x.ok ? '✓ ok' : '✗ falhou'}</td><td style="white-space:normal">${esc(x.error)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 async function introspect() {
   $('#schema').innerHTML = '<div class="note">Consultando schema…</div>';

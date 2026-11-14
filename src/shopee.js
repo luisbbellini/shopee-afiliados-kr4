@@ -60,6 +60,35 @@ export const FIELDS = {
   listItemFeeds: `datafeedId datafeedName description date feedMode totalCount`,
 };
 
+// Campos mínimos: usados quando a consulta completa falha, para descobrir o culpado.
+export const CORE = {
+  productOfferV2: 'itemId productName imageUrl priceMin priceMax commissionRate sales offerLink productLink shopName',
+  shopOfferV2: 'shopId shopName commissionRate offerLink imageUrl',
+  shopeeOfferV2: 'offerName commissionRate offerLink imageUrl',
+  conversionReport: 'purchaseTime conversionId totalCommission utmContent orders { orderId orderStatus items { itemId itemName actualAmount itemTotalCommission } }',
+  validatedReport: 'purchaseTime conversionId totalCommission utmContent orders { orderId orderStatus items { itemId itemName actualAmount itemTotalCommission } }',
+};
+
+// O que a API já rejeitou nesta instância (campos e argumentos), para não repetir o erro.
+export const learned = { badFields: {}, badArgs: {}, maxLimit: {} };
+
+// Divide uma seleção GraphQL nos itens do primeiro nível: "a b c { d } e" -> ["a","b","c { d }","e"]
+export function topLevel(sel) {
+  const out = []; let depth = 0; let cur = '';
+  for (const ch of sel.replace(/\s+/g, ' ').trim()) {
+    if (ch === '{') depth++;
+    if (ch === '}') depth--;
+    if (ch === ' ' && depth === 0) {
+      if (cur.trim()) { if (cur.trim().startsWith('{') && out.length) out[out.length - 1] += ' ' + cur.trim(); else out.push(cur.trim()); }
+      cur = '';
+    } else cur += ch;
+  }
+  if (cur.trim()) { if (cur.trim().startsWith('{') && out.length) out[out.length - 1] += ' ' + cur.trim(); else out.push(cur.trim()); }
+  return out;
+}
+const fieldName = (item) => item.split(/[\s{]/)[0];
+const isSystemError = (r) => (r.errors || []).some((e) => /system error|10000/i.test(`${e.message} ${e.extensions?.code ?? ''}`));
+
 const PAGE_INFO_PAGED = 'pageInfo { page limit hasNextPage }';
 const PAGE_INFO_SCROLL = 'pageInfo { limit hasNextPage scrollId }';
 
@@ -183,36 +212,119 @@ export class ShopeeAffiliate {
     return { errors: [{ message: 'Campos demais rejeitados pela API' }], stripped, query: q };
   }
 
+  /* ---------- consulta resiliente: se der "System Error", descobre o culpado ---------- */
+  async smartQuery(root, argObj, pageInfo = '') {
+    const badF = (learned.badFields[root] ||= new Set());
+    const badA = (learned.badArgs[root] ||= new Set());
+    const clean = (a) => Object.fromEntries(Object.entries(a).filter(([k, v]) => !badA.has(k) && v !== undefined && v !== null && v !== ''));
+    let a = clean(argObj);
+    if (learned.maxLimit[root] && a.limit > learned.maxLimit[root]) a.limit = learned.maxLimit[root];
+    const full = topLevel(FIELDS[root]).filter((f) => !badF.has(fieldName(f)));
+    const build = (fields, args, pi = pageInfo) => `{ ${root}${gqlArgs(args)} { nodes { ${fields.join(' ')} } ${pi} } }`;
+    const notes = [];
+
+    let r = await this.query(build(full, a));
+    if (!isSystemError(r)) return r;
+    const original = r;
+
+    // 1) limite menor
+    if ((a.limit ?? 0) > 20) {
+      const r2 = await this.query(build(full, { ...a, limit: 20 }));
+      if (!r2.errors?.length) { learned.maxLimit[root] = 20; return { ...r2, diagnostic: [`A Shopee recusou limit=${a.limit}; usei 20 por página.`] }; }
+    }
+    // 2) só os campos essenciais
+    const core = topLevel(CORE[root] || FIELDS[root]);
+    const coreNames = new Set(core.map(fieldName));
+    const rCore = await this.query(build(core, { ...a, limit: 1 }));
+    if (!rCore.errors?.length) {
+      // algum campo extra é o culpado: testa um por um
+      for (const f of full.filter((f) => !coreNames.has(fieldName(f)))) {
+        const t = await this.query(build([...core, f], { ...a, limit: 1 }));
+        if (t.errors?.length) badF.add(fieldName(f));
+        await sleep(150);
+      }
+      if (badF.size) notes.push('Campos que causam erro na Shopee e foram removidos: ' + [...badF].join(', '));
+    } else {
+      // 3) os argumentos: testa a consulta mínima e vai acrescentando um por um
+      const base = { limit: 1 };
+      if (a.keyword) base.keyword = a.keyword;
+      let rBase = await this.query(build(core, base));
+      if (rBase.errors?.length && base.keyword) { delete base.keyword; rBase = await this.query(build(core, base)); }
+      if (rBase.errors?.length) {
+        // sem pageInfo?
+        const rNoPI = await this.query(build(core, base, ''));
+        if (!rNoPI.errors?.length) { notes.push('A Shopee recusou o bloco pageInfo; consultando sem paginação.'); pageInfo = ''; }
+        else return { ...original, diagnostic: ['Até a consulta mínima falhou: o problema é na conta/credencial ou fora do ar na Shopee.', 'Erro: ' + (rNoPI.errors?.[0]?.message || '')] };
+      }
+      for (const k of Object.keys(a).filter((k) => !(k in base) && k !== 'limit')) {
+        const t = await this.query(build(core, { ...base, [k]: a[k] }, pageInfo));
+        if (t.errors?.length) badA.add(k);
+        await sleep(150);
+      }
+      if (badA.size) notes.push('Filtros que a Shopee recusou e foram ignorados: ' + [...badA].join(', '));
+    }
+    a = clean(argObj);
+    if (learned.maxLimit[root] && a.limit > learned.maxLimit[root]) a.limit = learned.maxLimit[root];
+    const fields = topLevel(FIELDS[root]).filter((f) => !badF.has(fieldName(f)));
+    let rFinal = await this.query(build(fields, a, pageInfo));
+    if (isSystemError(rFinal) && (a.limit ?? 0) > 20) {
+      rFinal = await this.query(build(fields, { ...a, limit: 20 }, pageInfo));
+      if (!rFinal.errors?.length) { learned.maxLimit[root] = 20; notes.push('Limite por página reduzido para 20.'); }
+    }
+    return { ...rFinal, diagnostic: notes.length ? notes : ['Não consegui isolar a causa do erro.'] };
+  }
+
+  // Bateria de testes para descobrir o que a conta aceita.
+  async diagnose(keyword = 'garrafa') {
+    const tests = [];
+    const run = async (name, q) => {
+      const t0 = Date.now(); const r = await this.raw(q);
+      tests.push({ name, ok: !r.errors?.length, ms: Date.now() - t0, error: r.errors?.map((e) => e.message + (e.extensions?.code ? ` [${e.extensions.code}]` : '')).join(' · ') || '' });
+      await sleep(200);
+    };
+    const kw = JSON.stringify(keyword);
+    await run('Mínima (itemId, productName)', `{ productOfferV2(keyword: ${kw}, limit: 1) { nodes { itemId productName } } }`);
+    await run('Com pageInfo', `{ productOfferV2(keyword: ${kw}, limit: 1) { nodes { itemId } pageInfo { page limit hasNextPage } } }`);
+    await run('Sem palavra-chave', `{ productOfferV2(limit: 1) { nodes { itemId } } }`);
+    await run('limit 20', `{ productOfferV2(keyword: ${kw}, limit: 20) { nodes { itemId } } }`);
+    await run('limit 50', `{ productOfferV2(keyword: ${kw}, limit: 50) { nodes { itemId } } }`);
+    for (const st of [1, 2, 5]) await run(`sortType ${st}`, `{ productOfferV2(keyword: ${kw}, sortType: ${st}, limit: 1) { nodes { itemId } } }`);
+    await run('page 2', `{ productOfferV2(keyword: ${kw}, page: 2, limit: 1) { nodes { itemId } } }`);
+    for (const f of topLevel(FIELDS.productOfferV2)) await run('campo ' + fieldName(f), `{ productOfferV2(keyword: ${kw}, limit: 1) { nodes { itemId ${f} } } }`);
+    await run('Lojas (shopOfferV2)', `{ shopOfferV2(limit: 1) { nodes { shopId shopName } } }`);
+    await run('Campanhas (shopeeOfferV2)', `{ shopeeOfferV2(limit: 1) { nodes { offerName } } }`);
+    const now = Math.floor(Date.now() / 1000);
+    await run('Conversões 7 dias', `{ conversionReport(purchaseTimeStart: ${now - 7 * 86400}, purchaseTimeEnd: ${now}, limit: 1) { nodes { conversionId } } }`);
+    return { tests, learned: { badFields: mapSets(learned.badFields), badArgs: mapSets(learned.badArgs), maxLimit: learned.maxLimit } };
+  }
+
   /* ------------------------- consultas prontas ------------------------- */
 
   // Busca de produtos com comissão.
   // listType: 0 todos | 1 maior comissão | 2 mais vendidos | 3 categoria (landing) | 4 categoria | 5 loja
   // sortType: 1 relevância | 2 mais vendidos | 3 maior preço | 4 menor preço | 5 maior comissão
   productOffers(a = {}) {
-    const args = gqlArgs({
+    return this.smartQuery('productOfferV2', {
       keyword: a.keyword, shopId: num(a.shopId), itemId: num(a.itemId), productCatId: num(a.productCatId),
       listType: num(a.listType), matchId: num(a.matchId), sortType: num(a.sortType),
       isAMSOffer: bool(a.isAMSOffer), isKeySeller: bool(a.isKeySeller),
       page: num(a.page) ?? 1, limit: num(a.limit) ?? 50,
-    });
-    return this.query(`{ productOfferV2${args} { nodes { ${FIELDS.productOfferV2} } ${PAGE_INFO_PAGED} } }`);
+    }, PAGE_INFO_PAGED);
   }
 
   // Lojas com comissão. sortType: 1 mais recentes | 2 maior comissão | 3 lojas populares
   // shopType: [1] Mall, [2] Star, [4] Star+ (aceita lista)
   shopOffers(a = {}) {
-    const args = gqlArgs({
+    return this.smartQuery('shopOfferV2', {
       keyword: a.keyword, shopId: num(a.shopId), shopType: arr(a.shopType),
       isKeySeller: bool(a.isKeySeller), sortType: num(a.sortType), sellerCommCoveRatio: a.sellerCommCoveRatio,
       page: num(a.page) ?? 1, limit: num(a.limit) ?? 50,
-    });
-    return this.query(`{ shopOfferV2${args} { nodes { ${FIELDS.shopOfferV2} } ${PAGE_INFO_PAGED} } }`);
+    }, PAGE_INFO_PAGED);
   }
 
   // Campanhas/ofertas da Shopee. sortType: 1 mais recentes | 2 maior comissão
   shopeeOffers(a = {}) {
-    const args = gqlArgs({ keyword: a.keyword, sortType: num(a.sortType), page: num(a.page) ?? 1, limit: num(a.limit) ?? 50 });
-    return this.query(`{ shopeeOfferV2${args} { nodes { ${FIELDS.shopeeOfferV2} } ${PAGE_INFO_PAGED} } }`);
+    return this.smartQuery('shopeeOfferV2', { keyword: a.keyword, sortType: num(a.sortType), page: num(a.page) ?? 1, limit: num(a.limit) ?? 50 }, PAGE_INFO_PAGED);
   }
 
   // Gera link curto de afiliado (até 5 subIds).
@@ -223,21 +335,19 @@ export class ShopeeAffiliate {
 
   // Relatório de conversões (datas em unix segundos). Paginação por scrollId.
   conversionReport(a = {}) {
-    const args = gqlArgs({
+    return this.smartQuery('conversionReport', {
       purchaseTimeStart: num(a.purchaseTimeStart), purchaseTimeEnd: num(a.purchaseTimeEnd),
       completeTimeStart: num(a.completeTimeStart), completeTimeEnd: num(a.completeTimeEnd),
       shopName: a.shopName, shopId: num(a.shopId), orderId: a.orderId, productName: a.productName,
       productId: num(a.productId), conversionStatus: enumOf(a.conversionStatus), orderStatus: enumOf(a.orderStatus),
       buyerType: enumOf(a.buyerType), attributionType: enumOf(a.attributionType), device: enumOf(a.device),
       fraudStatus: enumOf(a.fraudStatus), limit: num(a.limit) ?? 500, scrollId: a.scrollId,
-    });
-    return this.query(`{ conversionReport${args} { nodes { ${FIELDS.conversionReport} } ${PAGE_INFO_SCROLL} } }`);
+    }, PAGE_INFO_SCROLL);
   }
 
   // Relatório validado (precisa do validationId do painel de pagamentos).
   validatedReport(a = {}) {
-    const args = gqlArgs({ validationId: num(a.validationId), limit: num(a.limit) ?? 500, scrollId: a.scrollId });
-    return this.query(`{ validatedReport${args} { nodes { ${FIELDS.validatedReport} } ${PAGE_INFO_SCROLL} } }`);
+    return this.smartQuery('validatedReport', { validationId: num(a.validationId), limit: num(a.limit) ?? 500, scrollId: a.scrollId }, PAGE_INFO_SCROLL);
   }
 
   // Lista os feeds de catálogo (FULL ou DELTA).
@@ -267,11 +377,13 @@ export class ShopeeAffiliate {
   async allPages(method, args = {}, { maxPages = 10, delayMs = 400 } = {}) {
     const nodes = [];
     const stripped = new Set();
+    const diagnostic = new Set();
     let page = num(args.page) ?? 1;
     let last;
     for (let i = 0; i < maxPages; i++) {
       last = await this[method]({ ...args, page });
       (last.stripped || []).forEach((f) => stripped.add(f));
+      (last.diagnostic || []).forEach((d) => diagnostic.add(d));
       if (last.errors?.length) break;
       const root = Object.values(last.data || {})[0] || {};
       nodes.push(...(root.nodes || []));
@@ -279,7 +391,7 @@ export class ShopeeAffiliate {
       page++;
       await sleep(delayMs);
     }
-    return { nodes, pages: page, stripped: [...stripped], errors: last?.errors };
+    return { nodes, pages: page, stripped: [...stripped], diagnostic: [...diagnostic], errors: last?.errors };
   }
 
   // Percorre relatórios por scrollId.
@@ -303,6 +415,7 @@ export class ShopeeAffiliate {
   }
 }
 
+function mapSets(o) { return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v]])); }
 function num(v) {
   if (v === undefined || v === null || v === '') return undefined;
   const n = Number(v);

@@ -46,6 +46,7 @@ const routes = {
   },
   'POST /api/graphql': (b) => client.raw(b.query, b.variables),
   'POST /api/introspect': () => client.introspect(),
+  'POST /api/diagnose': (b) => client.diagnose(b.keyword || 'garrafa'),
   'POST /api/cache/clear': async () => { cache.clear(); return { ok: true }; },
 };
 
@@ -62,7 +63,7 @@ function scrolled(method, b = {}) {
 function norm(r) {
   if (r.nodes) return r;
   const root = Object.values(r.data || {})[0] || {};
-  return { nodes: root.nodes || [], pageInfo: root.pageInfo, stripped: r.stripped || [], errors: r.errors, query: r.query };
+  return { nodes: root.nodes || [], pageInfo: root.pageInfo, stripped: r.stripped || [], diagnostic: r.diagnostic, errors: r.errors, query: r.query };
 }
 function mask(s = '') { return s.length > 6 ? s.slice(0, 4) + '…' + s.slice(-2) : s; }
 
