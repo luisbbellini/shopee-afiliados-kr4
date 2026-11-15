@@ -234,6 +234,90 @@ export async function aiTest(ai = {}) {
   throw new Error(`${NAMES[provider]}: ${last.error || 'HTTP ' + last.status}${hint}`);
 }
 
+/* ---------------- editar foto com IA (ChatGPT ou Gemini) ---------------- */
+const IMG_MODELS = {
+  openai: ['gpt-image-2.5-flare', 'gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini'],
+  gemini: ['gemini-nano-banana-2.1', 'gemini-3.1-flash-image'],
+};
+// Regras fixas: o produto não pode mudar; pessoa nova é sempre fictícia.
+const IMG_RULES = `REGRAS OBRIGATÓRIAS:
+- Mantenha o produto (roupa, calçado ou objeto) EXATAMENTE igual ao da foto original: mesma cor, modelagem, comprimento, estampa, tecido, textura, botões, costuras, detalhes e logotipos. Não invente nem remova detalhes do produto.
+- Se o pedido envolver trocar a pessoa/modelo, crie uma pessoa nova e fictícia, que não se pareça com a pessoa original nem com nenhuma pessoa real conhecida, vestindo/usando o mesmo produto, com o mesmo caimento.
+- Fotografia realista de catálogo/e-commerce, iluminação profissional, nítida, sem texto, sem marca d'água, sem bordas.`;
+const ASPECT = { '9:16': { openai: '1024x1536', label: 'vertical 9:16 (stories/TikTok)' }, '4:5': { openai: '1024x1536', label: 'vertical 4:5 (feed)' }, '1:1': { openai: '1024x1024', label: 'quadrado 1:1' } };
+
+export async function editImage({ url, imageB64, prompt = '', aspect = '4:5' }, ai = {}) {
+  const apiKey = String(ai.key || '').trim();
+  if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (ChatGPT ou Gemini).');
+  const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
+  if (provider === 'anthropic') throw new Error('O Claude não gera imagens. Para editar fotos, use uma chave do ChatGPT (OpenAI) ou do Gemini (Google).');
+  if (!IMG_MODELS[provider]) throw new Error('Não reconheci a chave da IA. Escolha a empresa em ⚙ Configurações.');
+  if (!String(prompt).trim()) throw new Error('Escreva ou escolha o que mudar na foto.');
+
+  // imagem de origem: foto do produto (Shopee) ou a imagem já editada que o painel mandou
+  let buf, type;
+  if (imageB64) {
+    const m = String(imageB64).match(/^data:(image\/[a-z+]+);base64,(.*)$/);
+    buf = Buffer.from(m ? m[2] : imageB64, 'base64'); type = m ? m[1] : 'image/jpeg';
+    if (buf.length > 8 * 1024 * 1024) throw new Error('Imagem grande demais (máx. 8 MB).');
+  } else ({ buf, type } = await fetchImage(url));
+
+  const ar = ASPECT[aspect] ? aspect : '4:5';
+  const fullPrompt = `Edite esta foto de produto: ${prompt.trim()}\nFormato final: ${ASPECT[ar].label}.\n\n${IMG_RULES}`;
+  const models = ai.imageModel ? [ai.imageModel] : IMG_MODELS[provider];
+  let last;
+  for (const model of models) {
+    try { last = provider === 'openai' ? await openaiEdit(apiKey, model, buf, type, fullPrompt, ASPECT[ar].openai) : await geminiEdit(apiKey, model, buf, type, fullPrompt, ar); }
+    catch (e) { throw new Error(`${NAMES[provider]}: não consegui conectar (${e.message}).`); }
+    if (last.ok) return { buf: last.buf, type: last.type, model: `${NAMES[provider]} · ${model}` };
+    if (!modelMissing(last.status, last.error) || ai.imageModel) break;
+  }
+  const e = last.error || 'HTTP ' + last.status;
+  const hint = last.status === 401 ? ' (chave inválida)' : last.status === 429 ? ' (sem créditos ou limite atingido)'
+    : /verif/i.test(e) ? ' — a OpenAI pede verificar a organização para gerar imagens: platform.openai.com → Settings → Organization → Verify.'
+    : /safety|policy|moderat|blocked/i.test(e) ? ' — a IA recusou o pedido; tente descrever de outro jeito.' : '';
+  throw new Error(`${NAMES[provider]}: ${e}${hint}`);
+}
+
+async function openaiEdit(apiKey, model, buf, type, prompt, size) {
+  const send = async (withFidelity) => {
+    const fd = new FormData();
+    fd.append('model', model);
+    fd.append('prompt', prompt);
+    fd.append('image', new Blob([buf], { type }), 'produto.' + (/png/.test(type) ? 'png' : /webp/.test(type) ? 'webp' : 'jpg'));
+    fd.append('size', size);
+    fd.append('quality', 'medium');
+    fd.append('n', '1');
+    if (withFidelity) fd.append('input_fidelity', 'high'); // preserva melhor os detalhes do produto
+    const r = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: fd });
+    const j = await r.json().catch(() => ({}));
+    return { r, j };
+  };
+  let { r, j } = await send(true);
+  if (r.status === 400 && /input_fidelity/i.test(j.error?.message || '')) ({ r, j } = await send(false));
+  const b64 = j.data?.[0]?.b64_json;
+  if (!r.ok || !b64) return { ok: false, status: r.status, error: j.error?.message || 'a IA não devolveu imagem' };
+  return { ok: true, buf: Buffer.from(b64, 'base64'), type: 'image/png' };
+}
+
+async function geminiEdit(apiKey, model, buf, type, prompt, aspect) {
+  const send = async (withAspect) => {
+    const body = { contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: type, data: buf.toString('base64') } }] }], generationConfig: { responseModalities: ['IMAGE'], ...(withAspect ? { imageConfig: { aspectRatio: aspect } } : {}) } };
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    return { r, j };
+  };
+  let { r, j } = await send(true);
+  if (r.status === 400 && /imageConfig|aspect/i.test(j.error?.message || '')) ({ r, j } = await send(false));
+  const part = (j.candidates?.[0]?.content?.parts || []).find((p) => p.inlineData || p.inline_data);
+  const d = part?.inlineData || part?.inline_data;
+  if (!r.ok || !d?.data) {
+    const why = j.error?.message || j.promptFeedback?.blockReason || j.candidates?.[0]?.finishReason || 'a IA não devolveu imagem';
+    return { ok: false, status: r.ok ? 422 : r.status, error: why };
+  }
+  return { ok: true, buf: Buffer.from(d.data, 'base64'), type: d.mimeType || d.mime_type || 'image/png' };
+}
+
 /* ---------------- fotos ---------------- */
 const IMG_HOSTS = [/(^|\.)susercontent\.com$/, /(^|\.)shopee\.com\.br$/, /(^|\.)shopee\.[a-z.]+$/, /(^|\.)shopeemobile\.com$/, /^picsum\.photos$/, /(^|\.)fastly\.picsum\.photos$/];
 function safeImageUrl(u) {

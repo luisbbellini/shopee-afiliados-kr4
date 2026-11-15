@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     if (r.binary) {
       res.setHeader('Content-Type', r.contentType || 'application/octet-stream');
       res.setHeader('Content-Disposition', `attachment; filename="${r.filename || 'arquivo'}"`);
+      if (r.info) res.setHeader('X-Info', encodeURIComponent(r.info));
       return res.status(200).send(r.binary);
     }
     res.status(r.status).json(r.body);

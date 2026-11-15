@@ -125,6 +125,16 @@
   .scb{border-top:1px solid var(--line);padding-top:10px;margin-top:10px} .scb p{margin:4px 0 8px} .scb .big{font-size:16px;font-weight:600}
   .cenas{padding-left:20px;margin:4px 0} .cenas li{margin-bottom:8px}
   [hidden]{display:none !important}
+  #imgModal{width:min(620px,calc(100% - 24px))} #imgShade{z-index:24}
+  .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
+  .presets h3{margin:4px 0 6px;font-size:12px}
+  .presets .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+  .presets .chip{font-size:12.5px;padding:5px 10px}
+  .imggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .imgres{display:flex;flex-direction:column;gap:6px;background:var(--soft);border-radius:10px;padding:6px}
+  .imgres img{width:100%;border-radius:8px;display:block;background:var(--panel)}
+  .imgres .acts{margin:0} .imgres .meta{font-size:11px}
+  .imgres.loading{aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:10px}
   .intro{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--muted)}
   .intro b{color:var(--ink);font-weight:600}
   .manual{max-width:760px;display:flex;flex-direction:column;gap:10px}
@@ -253,7 +263,7 @@
 
 <!-- PARA GRAVAR -->
 <section id="favs">
-  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, o link com subId e baixe as fotos.</p>
+  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, <b>edite a foto com IA</b> (fundo, modelo, estilo), gere o link com subId e baixe as fotos.</p>
   <div class="out"></div>
 </section>
 
@@ -415,7 +425,7 @@
         <li><b>Produtos</b>: busca livre de produtos com comissão, com filtros e ordenação.</li>
         <li><b>Oportunidades</b>: ranking de produtos que vendem bem com provável pouca concorrência.</li>
         <li><b>Em alta</b>: produtos cujas vendas mais cresceram nos últimos dias (precisa do banco de dados).</li>
-        <li><b>Para gravar</b>: sua lista de produtos escolhidos, com etapas, roteiro com IA, link e fotos.</li>
+        <li><b>Para gravar</b>: sua lista de produtos escolhidos, com etapas, roteiro com IA, edição de foto com IA, link e fotos.</li>
         <li><b>Ganhos</b>: comissão por dia, vídeos que mais venderam, meta do mês e quantas vendas faltam.</li>
         <li><b>Lojas</b>: lojas que pagam comissão (ordene por "Maior comissão").</li>
         <li><b>Campanhas Shopee</b>: campanhas e ofertas oficiais da Shopee.</li>
@@ -521,7 +531,20 @@
       <p>Cada roteiro custa uma fração de centavo de dólar. O roteiro fica salvo junto do produto na lista e mostra qual IA o gerou.</p>
     </div></details>
 
-    <details><summary>12. Glossário</summary><div class="body">
+    <details><summary>12. Editar foto com IA (trocar fundo, modelo, estilo)</summary><div class="body">
+      <p>Funciona com chave do <b>ChatGPT</b> ou do <b>Gemini</b> (o Claude não gera imagens).</p>
+      <ol>
+        <li>No detalhe de um produto toque em <b>Editar foto (IA)</b>, ou em <b>Para gravar</b> toque em <b>Editar foto</b>.</li>
+        <li>Toque nas sugestões (uma por grupo: <b>Fundo</b>, <b>Modelo</b>, <b>Estilo</b>) ou escreva o que quer mudar.</li>
+        <li>Escolha o formato (9:16 para TikTok/Stories, 4:5 para feed) e quantas variações, e toque em <b>Gerar imagens</b>. Cada uma leva de 20 segundos a 1 minuto.</li>
+        <li><b>Baixar</b> salva no celular. <b>Editar esta</b> faz novas mudanças em cima da imagem gerada.</li>
+      </ol>
+      <p><b>Regras que o painel sempre manda para a IA:</b> a peça continua igual (cor, modelagem, estampa, detalhes) e qualquer pessoa nova é fictícia. Mesmo assim, confira a imagem antes de postar: se a peça mudou, gere de novo.</p>
+      <p>Ao postar, marque como <b>conteúdo gerado por IA</b> no TikTok/Instagram. Cada imagem custa alguns centavos na conta da IA.</p>
+      <p><b>Se aparecer "organization must be verified"</b>: a OpenAI exige verificar a conta para gerar imagens. Entre em <b>platform.openai.com → Settings → Organization → Verify</b> (pede um documento) e tente de novo depois de aprovado. Com chave do Gemini isso não é necessário.</p>
+    </div></details>
+
+    <details><summary>13. Glossário</summary><div class="body">
       <ul>
         <li><b>Comissão</b>: porcentagem do valor da venda que vai para o afiliado.</li>
         <li><b>AMS / comissão extra do vendedor</b>: comissão adicional paga pela loja, além da da Shopee.</li>
@@ -570,6 +593,44 @@
   <div id="aiMsg" class="note" style="margin:0" hidden></div>
   <h3 class="sec">Alertas diários</h3>
   <div id="alertBox" style="display:flex;flex-direction:column;gap:10px"></div>
+</div>
+
+<div class="shade" id="imgShade" onclick="closeImgEdit()"></div>
+<div class="modal" id="imgModal" role="dialog" aria-labelledby="imgTitle">
+  <div class="bar" style="margin:0"><h2 id="imgTitle" style="flex:1;font-size:15px">Editar foto com IA</h2><button class="b sm" onclick="closeImgEdit()">Fechar</button></div>
+  <div class="srcrow"><img id="imgSrc" alt="Foto de origem"><div class="meta" id="imgSrcLabel" style="display:block">Foto original do produto</div></div>
+  <div class="presets">
+    <div><h3>Fundo</h3><div class="chips" data-group="fundo">
+      <button class="chip" data-p="trocar o fundo por um estúdio branco liso, iluminação suave">Estúdio branco</button>
+      <button class="chip" data-p="trocar o fundo por uma praia ao pôr do sol">Praia</button>
+      <button class="chip" data-p="trocar o fundo por uma rua urbana charmosa durante o dia">Cidade</button>
+      <button class="chip" data-p="trocar o fundo por uma sala de estar aconchegante e bem decorada">Casa</button>
+      <button class="chip" data-p="trocar o fundo por uma cafeteria moderna">Cafeteria</button>
+      <button class="chip" data-p="trocar o fundo por uma decoração de Natal elegante">Natal</button>
+    </div></div>
+    <div><h3>Modelo (pessoa fictícia)</h3><div class="chips" data-group="modelo">
+      <button class="chip" data-p="trocar a modelo por uma modelo plus size">Plus size</button>
+      <button class="chip" data-p="trocar a modelo por uma modelo negra">Negra</button>
+      <button class="chip" data-p="trocar a modelo por uma modelo morena de cabelos cacheados">Morena</button>
+      <button class="chip" data-p="trocar a modelo por uma modelo loira">Loira</button>
+      <button class="chip" data-p="trocar a modelo por uma mulher de cerca de 45 anos, elegante">Mulher 40+</button>
+      <button class="chip" data-p="trocar a pessoa por um modelo masculino">Masculino</button>
+    </div></div>
+    <div><h3>Estilo</h3><div class="chips" data-group="estilo">
+      <button class="chip" data-p="mostrar a peça em flat lay, estendida sobre uma superfície clara, vista de cima, sem pessoa">Flat lay</button>
+      <button class="chip" data-p="close-up no detalhe do tecido e acabamento">Close no tecido</button>
+      <button class="chip" data-p="luz natural de janela, clima de manhã">Luz natural</button>
+      <button class="chip" data-p="pose de corpo inteiro caminhando">Corpo inteiro</button>
+    </div></div>
+  </div>
+  <div class="f"><label for="imgPrompt">O que mudar na foto</label><textarea id="imgPrompt" rows="3" style="font-family:inherit;font-size:15px" placeholder="Toque nas sugestões acima ou escreva, ex.: trocar o fundo por um jardim florido"></textarea></div>
+  <div class="bar" style="margin:0">
+    <div class="f"><label for="imgAspect">Formato</label><select id="imgAspect"><option value="9:16">Vertical 9:16 (TikTok/Stories)</option><option value="4:5" selected>Vertical 4:5 (feed)</option><option value="1:1">Quadrado 1:1</option></select></div>
+    <div class="f"><label for="imgN">Variações</label><select id="imgN"><option>1</option><option selected>2</option><option>3</option></select></div>
+  </div>
+  <button class="b p" id="imgGo" onclick="genImages()">Gerar imagens</button>
+  <p class="meta" style="display:block;margin:0">A peça é mantida igual (cor, modelagem, estampa) e qualquer pessoa nova é fictícia. Ao postar, marque como <b>conteúdo gerado por IA</b> no TikTok/Instagram. Cada imagem custa alguns centavos na sua conta da IA.</p>
+  <div id="imgOut" class="imggrid"></div>
 </div>
 
 <div class="shade" id="scShade" onclick="closeScript()"></div>
@@ -985,6 +1046,7 @@ function openObj(o) {
     ${isProd && typeof toggleFav === 'function' ? `<div class="bar">
       <button class="b sm ${FAV.has(String(o.itemId)) ? '' : 'p'}" onclick="toggleFav(current);openObj(current)">${FAV.has(String(o.itemId)) ? '★ Na lista Para gravar (remover)' : '★ Adicionar em Para gravar'}</button>
       <button class="b sm" onclick="closeDrawer();openScript(FAV.get(String(current.itemId)) || current)">Roteiro IA</button>
+      ${o.imageUrl ? `<button class="b sm" onclick="closeDrawer();openImgEdit(current)">Editar foto (IA)</button>` : ''}
       ${o.imageUrl ? `<button class="b sm" onclick="downloadPhoto(current.imageUrl, current.productName)">Baixar foto</button>` : ''}
     </div><div id="histBox"></div>` : ''}
     ${link ? `<div class="bar">

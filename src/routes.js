@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { ShopeeAffiliate, clearLearned } from './shopee.js';
 import { mockResponse } from './mock.js';
 import { findOpportunities } from './opportunities.js';
-import { favList, favSave, aiTest, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
+import { favList, favSave, aiTest, editImage, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
 import { getJSON, itemHistory } from './store.js';
 
 const MOCK = process.env.SHOPEE_MOCK === '1';
@@ -79,6 +79,10 @@ const routes = {
   // Roteiro com IA (chave do aparelho ou da Vercel)
   'POST /api/script': async (b, ctx) => ({ script: await videoScript(b, ctx.ai) }),
   'POST /api/ai/test': async (b, ctx) => aiTest(ctx.ai),
+  'POST /api/image-edit': async (b, ctx) => {
+    const r = await editImage(b, ctx.ai);
+    return { __binary: r.buf, contentType: r.type, filename: `editada-${Date.now()}.${extOf(r.type)}`, info: r.model };
+  },
 
   // Fotos
   'POST /api/image': async (b) => { const { buf, type } = await fetchImage(b.url); return { __binary: buf, contentType: type, filename: slug(b.name) + '.' + extOf(type) }; },
@@ -129,7 +133,7 @@ function mask(s = '') { return s.length > 6 ? s.slice(0, 4) + '…' + s.slice(-2
 // Executa uma rota. Retorna { status, body }.
 // Rotas que não precisam das credenciais da Shopee
 const NO_SHOPEE = new Set(['GET /api/status', 'POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history',
-  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/ai/test', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
+  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/ai/test', 'POST /api/image-edit', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
 const NEEDS_STORE = new Set(['POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history', 'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/cron/run', 'GET /api/cron']);
 const safeEq = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -156,15 +160,15 @@ export async function handle(method, pathname, body = {}, headers = {}) {
   // IA: chave do aparelho (cabeçalhos) ou da Vercel (AI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY ou GEMINI_API_KEY)
   const devKey = String(headers['x-ai-key'] || '').trim();
   ctx.ai = devKey
-    ? { key: devKey, provider: String(headers['x-ai-provider'] || 'auto'), model: String(headers['x-ai-model'] || '').trim() }
-    : { key: process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY || '', provider: process.env.AI_PROVIDER || 'auto', model: process.env.AI_MODEL || '' };
+    ? { key: devKey, provider: String(headers['x-ai-provider'] || 'auto'), model: String(headers['x-ai-model'] || '').trim(), imageModel: String(headers['x-ai-image-model'] || '').trim() }
+    : { key: process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY || '', provider: process.env.AI_PROVIDER || 'auto', model: process.env.AI_MODEL || '', imageModel: process.env.AI_IMAGE_MODEL || '' };
   if (!ctx.client && !NO_SHOPEE.has(key)) {
     return { status: 400, body: { errors: [{ message: 'Credenciais da Shopee não configuradas. Abra ⚙ Configurações no painel.' }] } };
   }
   const t0 = Date.now();
   try {
     const out = await fn(body, ctx);
-    if (out && out.__binary) return { status: 200, binary: out.__binary, contentType: out.contentType, filename: out.filename };
+    if (out && out.__binary) return { status: 200, binary: out.__binary, contentType: out.contentType, filename: out.filename, info: out.info };
     return { status: 200, body: { ...out, ms: Date.now() - t0 } };
   } catch (e) {
     return { status: 200, body: { errors: [{ message: e.message }], ms: Date.now() - t0 } };

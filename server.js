@@ -32,7 +32,7 @@ http.createServer(async (req, res) => {
       }
       const r = await handle(req.method, url.pathname, body, req.headers);
       if (r.binary) {
-        res.writeHead(200, { 'Content-Type': r.contentType || 'application/octet-stream', 'Content-Disposition': `attachment; filename="${r.filename || 'arquivo'}"` });
+        res.writeHead(200, { 'Content-Type': r.contentType || 'application/octet-stream', 'Content-Disposition': `attachment; filename="${r.filename || 'arquivo'}"`, ...(r.info ? { 'X-Info': encodeURIComponent(r.info) } : {}) });
         return res.end(r.binary);
       }
       res.writeHead(r.status, { 'Content-Type': 'application/json; charset=utf-8' });

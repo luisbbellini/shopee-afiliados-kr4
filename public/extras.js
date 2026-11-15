@@ -95,6 +95,7 @@ function renderFavs() {
         <div class="acts wrap">
           <button class="b sm p" onclick="openScript('${esc(x.itemId)}')">${x.script ? 'Ver roteiro' : 'Roteiro IA'}</button>
           <button class="b sm" onclick="favLink('${esc(x.itemId)}')">${x.shortLink ? 'Novo link' : 'Gerar link'}</button>
+          <button class="b sm" onclick="openImgEdit(FAV.get('${esc(x.itemId)}'))">Editar foto</button>
           <button class="b sm" onclick="downloadPhoto('${esc(x.imageUrl)}','${esc(x.productName)}')">Foto</button>
           ${linkBtn(shopeeApp(x.productLink), 'Shopee')}${linkBtn(tiktokApp(x.productName), 'TikTok')}
           <button class="b sm" aria-label="Remover" onclick="if(confirm('Remover da lista?'))favDelete('${esc(x.itemId)}')">Remover</button>
@@ -195,6 +196,67 @@ async function genScript() {
   $('#scOut').innerHTML = renderScript(r.script);
   if (FAV.has(String(scriptItem.itemId))) { await favUpsert({ itemId: scriptItem.itemId, script: r.script }); toast('Roteiro salvo na lista'); }
 }
+
+/* ---------------- editar foto com IA ---------------- */
+let imgItem = null, imgSource = null; // imgSource: { url } da Shopee ou { b64 } de uma imagem já editada
+function openImgEdit(item) {
+  if (!item?.imageUrl) return toast('Produto sem foto');
+  imgItem = item; imgSource = { url: item.imageUrl };
+  $('#imgSrc').src = item.imageUrl; $('#imgSrcLabel').textContent = 'Foto original do produto';
+  $('#imgTitle').textContent = 'Editar foto · ' + (item.productName || '').slice(0, 40);
+  $('#imgOut').innerHTML = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
+  $('#imgModal').classList.add('on'); $('#imgShade').classList.add('on');
+}
+function closeImgEdit() { $('#imgModal').classList.remove('on'); $('#imgShade').classList.remove('on'); }
+// sugestões: toca para acrescentar ao pedido (um por grupo)
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('#imgModal .presets .chip'); if (!c) return;
+  const group = c.parentElement; const ta = $('#imgPrompt');
+  const prev = group.querySelector('.chip.on');
+  let parts = ta.value.split(/\s*;\s*/).filter(Boolean);
+  if (prev) { parts = parts.filter((p) => p !== prev.dataset.p); prev.classList.remove('on'); }
+  if (prev !== c) { parts.push(c.dataset.p); c.classList.add('on'); }
+  ta.value = parts.join('; ');
+});
+// reduz a imagem antes de mandar de novo (economiza dados e cabe no limite do servidor)
+async function blobToSmallDataURL(blob, max = 1536) {
+  const img = await createImageBitmap(blob);
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.9);
+}
+async function genImages() {
+  const prompt = $('#imgPrompt').value.trim(); if (!prompt) return toast('Escolha uma sugestão ou escreva o que mudar');
+  const n = +$('#imgN').value, aspect = $('#imgAspect').value;
+  const btn = $('#imgGo'); btn.disabled = true;
+  const out = $('#imgOut');
+  for (let i = 0; i < n; i++) {
+    btn.textContent = `Gerando ${i + 1} de ${n}… (até 1 minuto)`;
+    const box = document.createElement('div'); box.className = 'imgres loading'; box.textContent = 'A IA está criando a imagem…';
+    out.prepend(box);
+    try {
+      const body = { prompt, aspect, ...(imgSource.b64 ? { imageB64: imgSource.b64 } : { url: imgSource.url }) };
+      const r = await fetch('/api/image-edit', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey(), ...credHeaders() }, body: JSON.stringify(body) });
+      if ((r.headers.get('content-type') || '').includes('application/json')) { const j = await r.json(); throw new Error(j.errors?.[0]?.message || 'Erro'); }
+      const blob = await r.blob(); const info = decodeURIComponent(r.headers.get('x-info') || '');
+      const url = URL.createObjectURL(blob);
+      const name = `${slugify(imgItem.productName)}-ia-${Date.now()}.${blob.type.includes('png') ? 'png' : 'jpg'}`;
+      box.className = 'imgres';
+      box.innerHTML = `<img src="${url}" alt="Imagem editada: ${esc(prompt)}"><div class="acts"><a class="b sm" href="${url}" download="${name}" style="text-decoration:none;color:inherit;text-align:center">Baixar</a><button class="b sm">Editar esta</button></div><div class="meta">${esc(info)}</div>`;
+      box.querySelector('button').onclick = async () => {
+        imgSource = { b64: await blobToSmallDataURL(blob) };
+        $('#imgSrc').src = url; $('#imgSrcLabel').textContent = 'Editando a imagem gerada'; $('#imgPrompt').value = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
+        $('#imgModal').scrollTop = 0; toast('Agora as mudanças valem sobre esta imagem');
+      };
+    } catch (e) {
+      box.className = 'imgres loading'; box.style.color = 'var(--err)'; box.textContent = e.message;
+      break; // não insiste se deu erro (evita cobrança repetida)
+    }
+  }
+  btn.disabled = false; btn.textContent = 'Gerar imagens';
+}
+const slugify = (s) => String(s || 'produto').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40).toLowerCase() || 'produto';
 
 /* ---------------- Ganhos ---------------- */
 const dayKey = (ts) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts * 1000));
