@@ -26,7 +26,7 @@ async function cached(key, fn) {
 
 // Rotas da API local
 const routes = {
-  'GET /api/status': async () => ({ ok: true, mock: MOCK, locked: !!PANEL_KEY, appId: mask(client.appId), endpoint: client.endpoint }),
+  'GET /api/status': async () => ({ ok: true, mock: MOCK, locked: !!PANEL_KEY, check: fingerprint(), appId: mask(client.appId), endpoint: client.endpoint }),
 
   'POST /api/products': (b) => paged('productOffers', b),
   'POST /api/shops': (b) => paged('shopOffers', b),
@@ -64,6 +64,12 @@ function norm(r) {
   if (r.nodes) return r;
   const root = Object.values(r.data || {})[0] || {};
   return { nodes: root.nodes || [], pageInfo: root.pageInfo, stripped: r.stripped || [], diagnostic: r.diagnostic, errors: r.errors, query: r.query };
+}
+// Impressão digital das credenciais (não revela o valor): tamanho + início do hash
+function fingerprint() {
+  const fp = (v = '') => `${String(v).length}:${crypto.createHash('sha256').update(String(v)).digest('hex').slice(0, 8)}`;
+  const raw = process.env.SHOPEE_SECRET || '';
+  return { appId: fp(client.appId), secret: fp(client.secret), secretHasSpaces: raw !== raw.trim() };
 }
 function mask(s = '') { return s.length > 6 ? s.slice(0, 4) + '…' + s.slice(-2) : s; }
 
