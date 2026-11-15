@@ -6,6 +6,9 @@
 <title>Shopee Afiliados — Painel</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#1d1d1b">
+<script>
+  (function () { try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {} })();
+</script>
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,9 +18,13 @@
     --accent:#ee4d2d; --accent-ink:#fff; --ok:#1f8a4c; --warn:#b26b00; --err:#c0362c;
     --r:10px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
+  :root{color-scheme:light}
+  /* Tema: automático (segue o celular), claro ou escuro — escolhido no botão do topo */
   @media (prefers-color-scheme:dark){
-    :root{--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--muted:#9a9993;--line:#2e2e2b;--soft:#252523}
+    :root:not([data-theme=light]){--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--muted:#9a9993;--line:#2e2e2b;--soft:#252523;color-scheme:dark}
   }
+  :root[data-theme=dark]{--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--muted:#9a9993;--line:#2e2e2b;--soft:#252523;color-scheme:dark}
+  :root[data-theme=light]{color-scheme:light}
   *{box-sizing:border-box}
   body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
   header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
@@ -169,6 +176,7 @@
   <span id="status" class="pill">verificando…</span>
   <div class="spacer"></div>
   <button class="b sm" onclick="openCreds()">⚙ Configurações</button>
+  <button class="b sm" id="themeBtn" onclick="cycleTheme()" aria-label="Mudar tema">◐ Automático</button>
   <button class="b sm" id="installBtn" hidden onclick="installApp()">Instalar app</button>
   <button class="b sm" onclick="clearCache()">Limpar cache</button>
   <button class="b sm" onclick="logout()" title="Esquecer a senha neste aparelho">Sair</button>
@@ -444,6 +452,7 @@
       <ul>
         <li><b>⚙ Configurações</b>: App ID e Secret da Shopee, chave da IA e alertas diários.</li>
         <li><b>Instalar app</b>: aparece quando o celular permite instalar o painel como aplicativo.</li>
+        <li><b>◐ Tema</b>: alterna entre <b>Automático</b> (segue o modo do celular), <b>Claro</b> e <b>Escuro</b>. A escolha fica salva no aparelho.</li>
         <li><b>Limpar cache</b>: o painel guarda buscas por 5 minutos para ficar rápido. Limpe para forçar dados novos.</li>
         <li><b>Sair</b>: apaga a senha do painel deste aparelho.</li>
       </ul>
@@ -618,6 +627,17 @@ async function testCreds() {
   if (r.ok) { m.className = 'note'; m.style.color = 'var(--ok)'; m.textContent = '✓ Funcionou! ' + credSourceLabel(); await api('cache/clear', {}); }
   else { m.style.color = ''; m.className = 'note err'; m.textContent = '✗ A Shopee recusou: ' + (r.error || r.errors?.[0]?.message || 'erro desconhecido') + '. ' + credSourceLabel(); }
 }
+// Tema: Automático → Claro → Escuro
+const THEMES = { auto: '◐ Automático', light: '☀ Claro', dark: '☾ Escuro' };
+function applyTheme(t) {
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  lsSet('theme', t === 'auto' ? '' : t);
+  const btn = $('#themeBtn'); if (btn) btn.textContent = THEMES[t] || THEMES.auto;
+  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#1d1d1b' : '#ffffff');
+}
+function cycleTheme() { const cur = lsGet('theme') || 'auto'; const next = { auto: 'light', light: 'dark', dark: 'auto' }[cur]; applyTheme(next); toast('Tema: ' + THEMES[next].slice(2)); }
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (!lsGet('theme')) applyTheme('auto'); });
 function logout() { setKey(''); toast('Senha removida deste aparelho'); }
 function formData(form) {
   const o = {};
@@ -666,6 +686,7 @@ $('#tabs').addEventListener('click', (e) => {
   if (b.dataset.t === 'trending' && typeof loadTrending === 'function' && !state.trending) loadTrending();
 });
 
+applyTheme(lsGet('theme') || 'auto');
 /* ---------------- status ---------------- */
 (async () => {
   try {
