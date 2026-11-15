@@ -383,6 +383,8 @@ $$('form[data-api]').forEach((form) => form.addEventListener('submit', async (e)
 function notes(r) {
   let h = '';
   if (r.errors?.length) h += `<div class="note err"><b>Erro da API:</b> ${esc(r.errors.map((e) => e.message + (e.extensions?.code ? ' [' + e.extensions.code + ']' : '')).join(' · '))}</div>`;
+  if ((r.errors || []).some((e) => /10020|Invalid Signature/i.test(e.message + (e.extensions?.code ?? ''))))
+    h += `<div class="note warn"><b>Assinatura inválida:</b> o App ID ou o Secret salvos na Vercel não batem com os da Shopee. Se você gerou um Secret novo, atualize <b>SHOPEE_SECRET</b> em Settings → Environment Variables e faça um Redeploy.</div>`;
   if (r.diagnostic?.length) h += `<div class="note warn"><b>Ajuste automático:</b> ${r.diagnostic.map(esc).join('<br>')}</div>`;
   if (r.stripped?.length) h += `<div class="note warn">Campos que a API não aceitou e foram removidos automaticamente: ${r.stripped.map((f) => '<span class="tag">' + esc(f) + '</span>').join(' ')}</div>`;
   return h;

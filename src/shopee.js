@@ -153,8 +153,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export class ShopeeAffiliate {
   constructor({ appId, secret, endpoint = ENDPOINT_BR, timeoutMs = 30000, autoStrip = true } = {}) {
     if (!appId || !secret) throw new Error('Defina SHOPEE_APP_ID e SHOPEE_SECRET no arquivo .env');
-    this.appId = String(appId);
-    this.secret = String(secret);
+    // trim: espaço ou quebra de linha colados por engano invalidam a assinatura
+    this.appId = String(appId).trim();
+    this.secret = String(secret).trim();
     this.endpoint = endpoint;
     this.timeoutMs = timeoutMs;
     this.autoStrip = autoStrip;
