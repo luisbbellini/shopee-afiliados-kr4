@@ -84,10 +84,13 @@
   .empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:var(--r)}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--soft);color:var(--muted)}
   a{color:var(--accent)}
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 24px));background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;z-index:25;display:none;flex-direction:column;gap:12px}
+  .modal.on{display:flex} .modal h2{margin:0;font-size:16px} .modal .f{min-width:0}
+  #credShade{z-index:24}
   @media (max-width:640px){
-    header{padding:10px 14px;gap:8px} header h1{font-size:14px;white-space:nowrap}
+    header{padding:10px 14px;gap:8px;flex-wrap:wrap} header h1{font-size:14px;white-space:nowrap}
     #status{font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    nav{padding:0 8px;top:49px;position:sticky;z-index:4}
+    header{position:static} nav{padding:0 8px;top:0;position:sticky;z-index:4}
     main{padding:12px}
     .form{padding:12px;gap:8px}
     .f{min-width:0;flex:1 1 calc(50% - 8px)} .f.grow{flex-basis:100%}
@@ -110,6 +113,7 @@
   <h1><span>●</span> Shopee Afiliados</h1>
   <span id="status" class="pill">verificando…</span>
   <div class="spacer"></div>
+  <button class="b sm" onclick="openCreds()">⚙ Credenciais</button>
   <button class="b sm" onclick="clearCache()">Limpar cache</button>
   <button class="b sm" onclick="logout()" title="Esquecer a senha neste aparelho">Sair</button>
 </header>
@@ -264,6 +268,22 @@
   <div class="bd" id="dBody"></div>
 </aside>
 <div class="toast" id="toast"></div>
+<div class="shade" id="credShade" onclick="closeCreds()"></div>
+<div class="modal" id="creds" role="dialog" aria-labelledby="credTitle">
+  <h2 id="credTitle">Credenciais da Shopee</h2>
+  <p class="meta" style="display:block">Copie do painel de afiliados (affiliate.shopee.com.br → Open API). Ficam salvas só neste aparelho e passam na frente das que estão na Vercel.</p>
+  <div class="f"><label for="cApp">App ID</label><input id="cApp" inputmode="numeric" autocomplete="off" placeholder="ex: 18353951040"></div>
+  <div class="f"><label for="cSec">Secret</label>
+    <div style="display:flex;gap:6px"><input id="cSec" type="password" autocomplete="off" spellcheck="false" style="flex:1" placeholder="cole o Secret aqui">
+    <button class="b sm" type="button" onclick="const i=$('#cSec');i.type=i.type==='password'?'text':'password'">Mostrar</button></div></div>
+  <div id="credMsg" class="note" style="margin:0">—</div>
+  <div class="bar" style="margin:0">
+    <button class="b p" onclick="saveCreds()">Salvar e testar</button>
+    <button class="b" onclick="clearCreds()">Usar as da Vercel</button>
+    <span style="flex:1"></span>
+    <button class="b" onclick="closeCreds()">Fechar</button>
+  </div>
+</div>
 
 <script>
 /* ---------------- helpers ---------------- */
@@ -289,7 +309,7 @@ function getKey() { try { return localStorage.getItem('panelKey') || ''; } catch
 function setKey(k) { try { localStorage.setItem('panelKey', k); } catch { window._k = k; } }
 async function api(path, body, retry = true) {
   const r = await fetch('/api/' + path, { method: body === undefined ? 'GET' : 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey() },
+    headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey(), ...credHeaders() },
     body: body === undefined ? undefined : JSON.stringify(body) });
   const j = await r.json();
   if (r.status === 401 && retry) {
@@ -297,6 +317,32 @@ async function api(path, body, retry = true) {
     if (k) { setKey(k.trim()); return api(path, body, false); }
   }
   return j;
+}
+function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch { return (window._ls || {})[k] || ''; } }
+function lsSet(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { (window._ls ||= {})[k] = v; } }
+function credHeaders() {
+  const sec = lsGet('shopeeSecret'); if (!sec) return {};
+  const h = { 'x-shopee-secret': sec }; const app = lsGet('shopeeAppId'); if (app) h['x-shopee-app-id'] = app; return h;
+}
+function credSourceLabel() { return lsGet('shopeeSecret') ? 'Usando as credenciais salvas neste aparelho.' : 'Usando as credenciais configuradas na Vercel.'; }
+function openCreds() {
+  $('#cApp').value = lsGet('shopeeAppId'); $('#cSec').value = lsGet('shopeeSecret'); $('#cSec').type = 'password';
+  $('#credMsg').className = 'note'; $('#credMsg').textContent = credSourceLabel();
+  $('#creds').classList.add('on'); $('#credShade').classList.add('on'); $('#cSec').focus();
+}
+function closeCreds() { $('#creds').classList.remove('on'); $('#credShade').classList.remove('on'); }
+async function saveCreds() {
+  const app = $('#cApp').value.trim(), sec = $('#cSec').value.trim();
+  if (!sec) { $('#credMsg').className = 'note err'; $('#credMsg').textContent = 'Cole o Secret.'; return; }
+  lsSet('shopeeAppId', app); lsSet('shopeeSecret', sec);
+  await testCreds();
+}
+async function clearCreds() { lsSet('shopeeAppId', ''); lsSet('shopeeSecret', ''); $('#cApp').value = ''; $('#cSec').value = ''; await testCreds(); }
+async function testCreds() {
+  const m = $('#credMsg'); m.className = 'note'; m.textContent = 'Testando com a Shopee…';
+  const r = await api('check', {});
+  if (r.ok) { m.className = 'note'; m.style.color = 'var(--ok)'; m.textContent = '✓ Funcionou! ' + credSourceLabel(); await api('cache/clear', {}); }
+  else { m.style.color = ''; m.className = 'note err'; m.textContent = '✗ A Shopee recusou: ' + (r.error || r.errors?.[0]?.message || 'erro desconhecido') + '. ' + credSourceLabel(); }
 }
 function logout() { setKey(''); toast('Senha removida deste aparelho'); }
 function formData(form) {
@@ -384,7 +430,7 @@ function notes(r) {
   let h = '';
   if (r.errors?.length) h += `<div class="note err"><b>Erro da API:</b> ${esc(r.errors.map((e) => e.message + (e.extensions?.code ? ' [' + e.extensions.code + ']' : '')).join(' · '))}</div>`;
   if ((r.errors || []).some((e) => /10020|Invalid Signature/i.test(e.message + (e.extensions?.code ?? ''))))
-    h += `<div class="note warn"><b>Assinatura inválida:</b> o App ID ou o Secret salvos na Vercel não batem com os da Shopee. Se você gerou um Secret novo, atualize <b>SHOPEE_SECRET</b> em Settings → Environment Variables e faça um Redeploy.</div>`;
+    h += `<div class="note warn"><b>Assinatura inválida:</b> o App ID ou o Secret não batem com os da Shopee. Se um Secret novo foi gerado, toque em <button class="b sm" onclick="openCreds()">⚙ Credenciais</button> e cole o novo.</div>`;
   if (r.diagnostic?.length) h += `<div class="note warn"><b>Ajuste automático:</b> ${r.diagnostic.map(esc).join('<br>')}</div>`;
   if (r.stripped?.length) h += `<div class="note warn">Campos que a API não aceitou e foram removidos automaticamente: ${r.stripped.map((f) => '<span class="tag">' + esc(f) + '</span>').join(' ')}</div>`;
   return h;
@@ -566,7 +612,7 @@ function moreFromShop(id) {
   closeDrawer(); const f = $('#products form');
   f.reset(); f.shopId.value = id; f.listType.value = '5'; f.requestSubmit();
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); closeCreds(); } });
 
 /* ---------------- console ---------------- */
 const TPL = {
