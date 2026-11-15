@@ -218,111 +218,30 @@ export class ShopeeAffiliate {
   /* ---------- consulta resiliente: se der "System Error", tenta contornar ---------- */
   // Regras: a palavra-chave nunca é descartada sozinha; nada de filtro é ignorado em
   // silêncio (sempre vem aviso); só campos de exibição são lembrados, e por 10 minutos.
-  async smartQuery(root, argObj, pageInfo = '') {
-    const st = (learned[root] ||= { badFields: new Set(), at: 0, kwMode: 'inline', maxLimit: 0 });
-    if (Date.now() - st.at > 10 * 60 * 1000) Object.assign(st, { badFields: new Set(), kwMode: 'inline', maxLimit: 0 });
-    let a = Object.fromEntries(Object.entries(argObj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
-    if (st.maxLimit && (a.limit ?? 50) > st.maxLimit) a = { ...a, limit: st.maxLimit };
-    const fieldsNow = () => topLevel(FIELDS[root]).filter((f) => !st.badFields.has(fieldName(f)));
-    const firstWord = (k) => String(k).trim().split(/\s+/)[0];
-    // Formas de mandar a palavra-chave: direto na consulta, como variável GraphQL, ou só a 1ª palavra.
-    const prep = (args, mode) => {
-      if (!args.keyword || mode === 'inline') return { args, decl: '', vars: undefined };
-      if (mode === 'firstWord') return { args: { ...args, keyword: firstWord(args.keyword) }, decl: '', vars: undefined };
-      return { args: { ...args, keyword: { __var: 'kw' } }, decl: `query Busca($kw: ${mode === 'varsReq' ? 'String!' : 'String'}) `, vars: { kw: String(args.keyword) } };
-    };
-    const run = (fields, args, mode = st.kwMode, pi = pageInfo) => {
-      const p = prep(args, mode);
-      return this.query(`${p.decl}{ ${root}${gqlArgs(p.args)} { nodes { ${fields.join(' ')} } ${pi} } }`, { variables: p.vars });
-    };
-    const okQ = (r) => !r.errors?.length;
-    const works = async (fields, args, mode) => { // só conta como falha se falhar 2 vezes
-      for (let i = 0; i < 2; i++) { if (okQ(await run(fields, args, mode))) return true; await sleep(250); }
-      return false;
-    };
-    const notes = [];
-    const tried = [];
-    const done = (r) => {
-      if (st.badFields.size) notes.push('Campos que a Shopee não devolve nesta busca e ficaram de fora: ' + [...st.badFields].join(', '));
-      if (!okQ(r)) notes.push(`A Shopee continuou recusando. Testei: ${tried.join(', ') || 'repetir a busca'}. Toque em Console GraphQL → Diagnóstico e me mande o print.`);
-      return notes.length ? { ...r, diagnostic: notes } : r;
-    };
-
-    let r = await run(fieldsNow(), a);
-    if (!isSystemError(r)) return done(r);
-    await sleep(400); // instabilidade momentânea? tenta igual mais uma vez
-    r = await run(fieldsNow(), a);
-    if (!isSystemError(r)) return done(r);
-    const original = r;
-
+  // A busca de produtos da Shopee às vezes responde "System Error" (10000) ao acaso.
+  // Diagnóstico de 15/11/2026: mesma consulta ora passa, ora falha. Então a resposta certa
+  // é repetir a MESMA busca com pausas crescentes, sem mudar filtros nem campos.
+  async smartQuery(root, argObj, pageInfo = '', { budgetMs = 20000 } = {}) {
+    const a = Object.fromEntries(Object.entries(argObj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
     if ([3, 4, 5].includes(a.listType) && !a.matchId) {
-      return { ...original, diagnostic: [a.listType === 5 ? 'Para a lista "Loja", preencha o ID da loja.' : 'Para listas de categoria, preencha o ID da categoria.'] };
+      return { errors: [{ message: 'Falta o ID' }], diagnostic: [a.listType === 5 ? 'Para a lista "Loja", preencha o ID da loja.' : 'Para listas de categoria, preencha o ID da categoria.'] };
     }
-
-    const core = topLevel(CORE[root] || FIELDS[root]);
-    const coreNames = core.map(fieldName);
-
-    // Passo A: achar uma forma da consulta funcionar com 1 item (modo da palavra-chave e filtros).
-    const modes = a.keyword ? [['inline', ''], ['vars', 'palavra como variável'], ['varsReq', 'palavra como variável obrigatória'], ['firstWord', `só "${a.keyword && firstWord(a.keyword)}"`]] : [['inline', '']];
-    let base = null; // { args, mode }
-    for (const [mode, label] of modes) {
-      if (label) tried.push(label);
-      if (await works(core, { ...a, limit: 1 }, mode)) { base = { args: a, mode }; break; }
+    const q = `{ ${root}${gqlArgs(a)} { nodes { ${FIELDS[root]} } ${pageInfo} } }`;
+    const waits = [0, 700, 1200, 2000, 3000, 4000, 5000];
+    const t0 = Date.now();
+    let r, attempts = 0;
+    for (const w of waits) {
+      if (w && Date.now() - t0 + w > budgetMs) break;
+      if (w) await sleep(w + Math.floor(Math.random() * 300));
+      attempts++;
+      r = await this.query(q);
+      if (!isSystemError(r)) break;
     }
-    if (!base) {
-      const LABEL = { listType: 'Lista', sortType: 'Ordenar', page: 'Página', isAMSOffer: 'Só AMS', isKeySeller: 'Só vendedores-chave', productCatId: 'ID categoria', shopId: 'ID da loja', itemId: 'ID do item', matchId: 'ID da lista', shopType: 'Tipo de loja' };
-      const candidates = [];
-      if (a.listType !== undefined && a.keyword) { const { keyword, ...x } = a; candidates.push([x, 'lista sem palavra-chave', 'A Shopee não aceita palavra-chave junto com essa lista. Mostrei a lista completa; use "Filtrar resultados" para refinar.']); }
-      for (const k of Object.keys(a).filter((k) => LABEL[k])) { const { [k]: _, ...x } = a; candidates.push([x, 'sem ' + LABEL[k], `A Shopee recusou o filtro "${LABEL[k]}" nesta combinação; busquei sem ele.`]); }
-      if (a.keyword) candidates.push([{ keyword: a.keyword, limit: a.limit }, 'só a palavra-chave', 'A Shopee só aceitou a palavra-chave sem os outros filtros; busquei só por ela.']);
-      outer: for (const [x, label, note] of candidates) {
-        tried.push(label);
-        for (const [mode] of modes) {
-          if (await works(core, { ...x, limit: 1 }, mode)) { base = { args: x, mode }; notes.push(note); break outer; }
-        }
-      }
+    r.attempts = attempts;
+    if (isSystemError(r)) {
+      r.diagnostic = [`A Shopee está instável: respondeu "System Error" nas ${attempts} tentativas seguidas (${Math.round((Date.now() - t0) / 1000)} s). Não é problema da busca nem da conta; tente de novo em instantes.`];
     }
-    if (!base) {
-      if (a.keyword) {
-        const { keyword, ...x } = a;
-        tried.push('sem a palavra-chave');
-        if (await works(core, { ...x, limit: 1 }, 'inline')) {
-          return { ...original, diagnostic: [`A Shopee recusa buscas com "${a.keyword}" nesta conta (sem a palavra a busca funciona). Testei: ${tried.join(', ')}. Toque em Console GraphQL → Diagnóstico e me mande o print.`] };
-        }
-      }
-      return done(original);
-    }
-    st.kwMode = base.mode; st.at = Date.now();
-    if (base.mode === 'firstWord') notes.push(`A Shopee só aceitou buscar por uma palavra; busquei por "${firstWord(a.keyword)}". Use "Filtrar resultados" para refinar.`);
-    let args = base.args;
-    const want = args.limit ?? 50;
-
-    // Passo B: com vários itens. Às vezes um produto da lista tem um campo quebrado e a Shopee falha.
-    tried.push(`${want} itens só com campos essenciais`);
-    let lim = want;
-    if (!(await works(core, { ...args, limit: lim }))) {
-      // descobre até quantos itens a Shopee devolve
-      lim = 0;
-      for (const n of [20, 10, 5, 2]) {
-        if (n >= want) continue;
-        tried.push(`${n} por página`);
-        if (await works(core, { ...args, limit: n })) { lim = n; break; }
-      }
-      if (!lim) lim = 1;
-      st.maxLimit = lim;
-      notes.push(`A Shopee só devolveu ${lim} por página nesta busca (algum produto da lista deve ter dados com problema).`);
-      args = { ...args, limit: lim };
-    }
-
-    // Passo C: campos de exibição, testados com o mesmo número de itens.
-    if (!(await works(fieldsNow(), args))) {
-      tried.push('campos um a um');
-      for (const f of fieldsNow().filter((f) => !coreNames.includes(fieldName(f)))) {
-        if (!(await works([...core, f], args))) st.badFields.add(fieldName(f));
-      }
-    }
-    st.at = Date.now();
-    return done(await run(fieldsNow(), args));
+    return r;
   }
 
   // Bateria de testes para descobrir o que a conta aceita.
@@ -334,6 +253,8 @@ export class ShopeeAffiliate {
       await sleep(200);
     };
     const kw = JSON.stringify(keyword);
+    // Mesma consulta 8 vezes, com 1 s de intervalo: mede a instabilidade da Shopee.
+    for (let i = 1; i <= 8; i++) { await run(`Repetição ${i}/8 (mesma busca)`, `{ productOfferV2(keyword: ${kw}, limit: 5) { nodes { itemId productName } } }`); await sleep(800); }
     await run('Mínima (itemId, productName)', `{ productOfferV2(keyword: ${kw}, limit: 1) { nodes { itemId productName } } }`);
     await run('Com pageInfo', `{ productOfferV2(keyword: ${kw}, limit: 1) { nodes { itemId } pageInfo { page limit hasNextPage } } }`);
     await run('Sem palavra-chave', `{ productOfferV2(limit: 1) { nodes { itemId } } }`);
@@ -369,7 +290,7 @@ export class ShopeeAffiliate {
       listType: num(a.listType), matchId: num(a.matchId), sortType: num(a.sortType),
       isAMSOffer: bool(a.isAMSOffer), isKeySeller: bool(a.isKeySeller),
       page: num(a.page) ?? 1, limit: num(a.limit) ?? 50,
-    }, PAGE_INFO_PAGED);
+    }, PAGE_INFO_PAGED, { budgetMs: a._budgetMs });
   }
 
   // Lojas com comissão. sortType: 1 mais recentes | 2 maior comissão | 3 lojas populares
@@ -441,10 +362,15 @@ export class ShopeeAffiliate {
     let page = num(args.page) ?? 1;
     let last;
     for (let i = 0; i < maxPages; i++) {
-      last = await this[method]({ ...args, page });
+      // 1ª página pode insistir mais; as seguintes desistem antes (limite de 60 s do servidor)
+      last = await this[method]({ ...args, page, _budgetMs: i === 0 ? 18000 : 7000 });
       (last.stripped || []).forEach((f) => stripped.add(f));
+      if (last.errors?.length) {
+        if (nodes.length) { diagnostic.add(`Parei na página ${page}: a Shopee não respondeu. Mostrando ${page - 1 === 1 ? 'a primeira página' : `as ${page - 1} primeiras páginas`}.`); last = { ...last, errors: undefined }; }
+        else (last.diagnostic || []).forEach((d) => diagnostic.add(d));
+        break;
+      }
       (last.diagnostic || []).forEach((d) => diagnostic.add(d));
-      if (last.errors?.length) break;
       const root = Object.values(last.data || {})[0] || {};
       nodes.push(...(root.nodes || []));
       if (!root.pageInfo?.hasNextPage) break;
