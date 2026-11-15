@@ -281,14 +281,32 @@ export class ShopeeAffiliate {
   // Busca de produtos com comissão.
   // listType: 0 todos | 1 maior comissão | 2 mais vendidos | 3 categoria (landing) | 4 categoria | 5 loja
   // sortType: 1 relevância | 2 mais vendidos | 3 maior preço | 4 menor preço | 5 maior comissão
-  productOffers(a = {}) {
+  async productOffers(a = {}) {
     // Listas 3/4 (categoria) e 5 (loja) usam matchId; aproveita os campos do formulário.
     const lt = num(a.listType);
     let matchId = num(a.matchId);
     if (!matchId && (lt === 3 || lt === 4)) { matchId = num(a.productCatId); a = { ...a, productCatId: undefined }; }
     if (!matchId && lt === 5) { matchId = num(a.shopId); a = { ...a, shopId: undefined }; }
     a = { ...a, matchId };
-    // Com uma lista escolhida, pede à Shopee só a lista; palavra-chave e ordem são aplicadas aqui.
+    // Lista + palavra-chave: a intenção é "dentro desta busca, os de maior comissão / mais vendidos".
+    // A busca por palavra-chave da Shopee já faz isso pela ordenação, então a lista vira ordenação/filtro.
+    if ([1, 2, 3, 4, 5].includes(lt) && String(a.keyword || '').trim() && !a._listRaw) {
+      const userSort = num(a.sortType) || 1;
+      const NAMES = { 1: 'Maior comissão', 2: 'Top performance', 3: 'Categoria', 4: 'Categoria detalhada', 5: 'Loja' };
+      const SORTN = { 1: 'relevância', 2: 'mais vendidos', 3: 'maior preço', 4: 'menor preço', 5: 'maior comissão' };
+      let sortType = userSort;
+      if (userSort === 1 && lt === 1) sortType = 5;
+      if (userSort === 1 && lt === 2) sortType = 2;
+      const b = { ...a, listType: undefined, matchId: undefined, sortType };
+      if (lt === 3 || lt === 4) b.productCatId = matchId;
+      if (lt === 5) b.shopId = matchId;
+      const r = await this.productOffers({ ...b, _listRaw: true });
+      const note = lt <= 2
+        ? `Lista "${NAMES[lt]}" + palavra-chave: busquei "${a.keyword}" ordenado por ${SORTN[sortType]}.`
+        : `Lista "${NAMES[lt]}" + palavra-chave: busquei "${a.keyword}" dentro ${lt === 5 ? 'da loja' : 'da categoria'} informada, ordenado por ${SORTN[sortType]}.`;
+      return { ...r, diagnostic: [...(r.diagnostic || []), note] };
+    }
+    // Lista sem palavra-chave: pede à Shopee só a lista; ordem escolhida é aplicada aqui.
     if ([1, 2, 3, 4, 5].includes(lt) && !a._listRaw) return this.listMode(a, lt);
     return this.smartQuery('productOfferV2', {
       keyword: a.keyword, shopId: num(a.shopId), itemId: num(a.itemId), productCatId: num(a.productCatId),
