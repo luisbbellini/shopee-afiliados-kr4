@@ -547,7 +547,7 @@ function renderOpps(r, out) {
   const f = (r.filter || '').toLowerCase();
   const rows = r.nodes.filter((x) => !f || JSON.stringify(x).toLowerCase().includes(f));
   out.innerHTML = notes(r) + `
-    <div class="bar"><span class="info">${int(rows.length)} oportunidades de ${int(r.analyzed || 0)} produtos analisados · ${int(r.radarSize?.top || 0) + int(r.radarSize?.commission || 0)} itens nas listas de destaque · ${((r.ms || 0) / 1000).toFixed(1)} s</span>
+    <div class="bar"><span class="info">${int(rows.length)} oportunidades de ${int(r.analyzed || 0)} produtos analisados · ${int((r.radarSize?.top || 0) + (r.radarSize?.commission || 0))} itens nas listas de destaque · ${((r.ms || 0) / 1000).toFixed(1)} s</span>
       <span style="flex:1"></span>
       <input placeholder="Filtrar resultados…" value="${esc(r.filter || '')}" oninput="state.opportunities.filter=this.value;render('opportunities');this.focus();this.setSelectionRange(this.value.length,this.value.length)" style="width:200px">
       <button class="b sm" onclick="download('oportunidades.csv',toCSV(state.opportunities.nodes.map(({parts,why,...x})=>({...x,motivos:why.join(' | ')}))),'text/csv')">CSV</button></div>` +
