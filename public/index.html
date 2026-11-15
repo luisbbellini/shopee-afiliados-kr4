@@ -123,7 +123,8 @@
   .modal .sec{margin:6px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
   #scModal{width:min(560px,calc(100% - 24px))} #scShade{z-index:24}
   .scb{border-top:1px solid var(--line);padding-top:10px;margin-top:10px} .scb p{margin:4px 0 8px} .scb .big{font-size:16px;font-weight:600}
-  .cenas{padding-left:20px;margin:4px 0} .cenas li{margin-bottom:8px}
+  .cenas{padding-left:20px;margin:4px 0} .cenas li{margin-bottom:10px}
+  .cenas .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600}
   [hidden]{display:none !important}
   #imgModal{width:min(620px,calc(100% - 24px))} #imgShade{z-index:24}
   .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
@@ -526,7 +527,13 @@
       <b>Gemini (Google):</b> aistudio.google.com → Get API key (começa com <span class="tagline">AIza</span>).</p>
       <ol>
         <li>Cole a chave em <b>⚙ Configurações → Roteiro com IA</b> e toque em <b>Salvar e testar</b>. Deve aparecer "✓ Funcionou".</li>
-        <li>Em <b>Para gravar</b> (ou no detalhe de um produto), toque em <b>Roteiro IA</b>, escolha o tom e a duração e gere.</li>
+        <li>Em <b>Para gravar</b> (ou no detalhe de um produto), toque em <b>Roteiro IA</b> e escolha o <b>tipo de vídeo</b>:
+          <ul>
+            <li><b>Narração (voz em off)</b>: ninguém aparece; uma voz fala por cima das imagens do produto.</li>
+            <li><b>Falando para a câmera (1ª pessoa)</b>: você aparece e fala como quem está mostrando o produto. Marque <b>"Eu já tenho / já usei"</b> se já usou; se não marcar, o roteiro não inventa experiência pessoal.</li>
+            <li><b>Só texto na tela</b>: sem fala, só frases escritas e música de fundo.</li>
+          </ul></li>
+        <li>Escolha o tom e a duração e gere. Cada cena vem com a fala, o texto que aparece na tela e o que filmar.</li>
       </ol>
       <p>Cada roteiro custa uma fração de centavo de dólar. O roteiro fica salvo junto do produto na lista e mostra qual IA o gerou.</p>
     </div></details>
@@ -636,6 +643,13 @@
 <div class="shade" id="scShade" onclick="closeScript()"></div>
 <div class="modal" id="scModal" role="dialog" aria-labelledby="scTitle">
   <div class="bar" style="margin:0"><h2 id="scTitle" style="flex:1;font-size:15px">Roteiro</h2><button class="b sm" onclick="closeScript()">Fechar</button></div>
+  <div class="f"><label for="scFormat">Tipo de vídeo</label>
+    <select id="scFormat" onchange="$('#scUsedRow').hidden=this.value!=='primeira_pessoa'">
+      <option value="narracao">Narração (voz em off, ninguém aparece)</option>
+      <option value="primeira_pessoa">Falando para a câmera (1ª pessoa)</option>
+      <option value="texto">Só texto na tela (sem fala, com música)</option>
+    </select></div>
+  <label class="f chk" id="scUsedRow" hidden><input type="checkbox" id="scUsed"> Eu já tenho / já usei este produto</label>
   <div class="bar" style="margin:0">
     <div class="f"><label for="scTone">Tom</label><select id="scTone"><option>animado</option><option>informativo</option><option>engraçado</option><option>emocional</option><option value="review sincero">review sincero</option><option value="tutorial/demonstração">tutorial</option></select></div>
     <div class="f"><label for="scDur">Duração</label><select id="scDur"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></div>

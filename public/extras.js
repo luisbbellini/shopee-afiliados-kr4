@@ -165,24 +165,27 @@ async function drawHistory(itemId) {
 
 /* ---------------- roteiro com IA ---------------- */
 let scriptItem = null;
+const FORMAT_LABEL = { narracao: 'Narração (voz em off)', primeira_pessoa: 'Falando para a câmera', texto: 'Só texto na tela' };
 function openScript(idOrObj) {
   scriptItem = typeof idOrObj === 'object' ? idOrObj : FAV.get(String(idOrObj));
   if (!scriptItem) return;
   $('#scTitle').textContent = scriptItem.productName || 'Roteiro';
+  $('#scFormat').value = lsGet('scFormat') || 'narracao'; $('#scUsedRow').hidden = $('#scFormat').value !== 'primeira_pessoa';
   $('#scOut').innerHTML = scriptItem.script ? renderScript(scriptItem.script) : '';
   $('#scModal').classList.add('on'); $('#scShade').classList.add('on');
 }
 function closeScript() { $('#scModal').classList.remove('on'); $('#scShade').classList.remove('on'); }
 function scriptText(s) {
   if (s.texto) return s.texto;
-  return [`GANCHO: ${s.gancho || ''}`, '', ...(s.cenas || []).map((c) => `[${c.tempo}] ${c.fala}${c.imagem ? `  (mostrar: ${c.imagem})` : ''}`), '', `CTA: ${s.cta || ''}`, '', `LEGENDA: ${s.legenda || ''}`, (s.hashtags || []).join(' ')].join('\n');
+  return [`${FORMAT_LABEL[s._formato] ? 'TIPO: ' + FORMAT_LABEL[s._formato] + '\n' : ''}GANCHO: ${s.gancho || ''}`, '', ...(s.cenas || []).map((c) => `[${c.tempo}]${c.fala ? ' ' + c.fala : ''}${c.texto_tela ? `  [tela: ${c.texto_tela}]` : ''}${c.imagem ? `  (${c.imagem})` : ''}`), '', `CTA: ${s.cta || ''}`, s.musica ? `MÚSICA: ${s.musica}` : '', '', `LEGENDA: ${s.legenda || ''}`, (s.hashtags || []).join(' ')].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 }
 function renderScript(s) {
   if (s.texto) return `<pre>${esc(s.texto)}</pre>`;
   window._lastScript = s;
   return `<div class="bar"><button class="b sm p" onclick="copy(scriptText(window._lastScript))">Copiar roteiro inteiro</button>${s._ia ? `<span class="meta">Gerado por ${esc(s._ia)}</span>` : ''}</div>
     <div class="scb"><h3>Gancho (3 primeiros segundos)</h3><p class="big">${esc(s.gancho)}</p><button class="b sm" onclick="copy(window._lastScript.gancho)">Copiar</button></div>
-    <div class="scb"><h3>Cenas</h3><ol class="cenas">${(s.cenas || []).map((c) => `<li><b>${esc(c.tempo)}</b> ${esc(c.fala)}${c.imagem ? `<div class="meta">Mostrar: ${esc(c.imagem)}</div>` : ''}</li>`).join('')}</ol></div>
+    <div class="scb"><h3>Cenas · ${esc(FORMAT_LABEL[s._formato] || 'roteiro')}</h3><ol class="cenas">${(s.cenas || []).map((c) => `<li><b>${esc(c.tempo)}</b>${c.fala ? ` <span class="lbl">${s._formato === 'primeira_pessoa' ? 'Fala' : 'Narração'}:</span> ${esc(c.fala)}` : ''}${c.texto_tela ? `<div><span class="lbl">Texto na tela:</span> ${esc(c.texto_tela)}</div>` : ''}${c.imagem ? `<div class="meta">${s._formato === 'primeira_pessoa' ? 'O que fazer' : 'Mostrar'}: ${esc(c.imagem)}</div>` : ''}</li>`).join('')}</ol></div>
+    ${s.musica ? `<div class="scb"><h3>Música de fundo</h3><p>${esc(s.musica)}</p></div>` : ''}
     <div class="scb"><h3>Chamada para comprar</h3><p>${esc(s.cta)}</p></div>
     <div class="scb"><h3>Legenda</h3><p>${esc(s.legenda)}</p><p class="meta">${esc((s.hashtags || []).join(' '))}</p><button class="b sm" onclick="copy(window._lastScript.legenda + '\\n\\n' + (window._lastScript.hashtags||[]).join(' '))">Copiar legenda + hashtags</button></div>
     ${(s.ideias_extra || []).length ? `<div class="scb"><h3>Outros ganchos</h3><ul>${s.ideias_extra.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>` : ''}`;
@@ -190,7 +193,8 @@ function renderScript(s) {
 async function genScript() {
   const btn = $('#scGo'); btn.disabled = true; btn.textContent = 'Escrevendo roteiro…';
   $('#scOut').innerHTML = '<div class="note">A IA está escrevendo (10 a 20 segundos)…</div>';
-  const r = await api('script', { product: scriptItem, tone: $('#scTone').value, duration: +$('#scDur').value, extra: $('#scExtra').value });
+  lsSet('scFormat', $('#scFormat').value);
+  const r = await api('script', { product: scriptItem, tone: $('#scTone').value, duration: +$('#scDur').value, extra: $('#scExtra').value, format: $('#scFormat').value, used: $('#scUsed').checked });
   btn.disabled = false; btn.textContent = 'Gerar roteiro';
   if (r.errors) { $('#scOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
   $('#scOut').innerHTML = renderScript(r.script);

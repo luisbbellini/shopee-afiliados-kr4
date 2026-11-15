@@ -138,6 +138,12 @@ export async function dailyJob(client, key, { panelUrl, budgetMs = 45000 } = {})
 }
 
 /* ---------------- roteiro com IA (ChatGPT, Claude ou Gemini) ---------------- */
+// Tipos de vídeo
+const FORMATS = {
+  narracao: 'NARRAÇÃO (voz em off): ninguém aparece falando; uma voz narra por cima de imagens do produto (mãos, detalhes, peça vestida). Texto em terceira pessoa ou falando direto com quem assiste ("você"), nunca "eu".',
+  primeira_pessoa: 'FALANDO PARA A CÂMERA (1ª pessoa): a criadora aparece e fala olhando para a câmera, em primeira pessoa ("eu", "olha isso"), como uma conversa com uma amiga. Inclua o que ela faz em cada cena (mostrar, vestir, apontar detalhe).',
+  texto: 'SÓ TEXTO NA TELA (sem fala): vídeo com música de fundo e frases curtas escritas na tela, sem ninguém falando. Cada cena tem um texto curto e o que filmar.',
+};
 // Descobre a empresa pela chave: sk-ant-… = Anthropic, AIza… = Google, sk-… = OpenAI.
 export function detectProvider(key = '') {
   const k = String(key).trim();
@@ -184,7 +190,7 @@ async function callAIRaw(provider, apiKey, model, prompt) {
   throw new Error('Empresa de IA desconhecida');
 }
 
-export async function videoScript({ product = {}, tone = 'animado', duration = 30, extra = '' }, ai = {}) {
+export async function videoScript({ product = {}, tone = 'animado', duration = 30, extra = '', format = 'narracao', used = false }, ai = {}) {
   const apiKey = String(ai.key || '').trim();
   if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (ChatGPT, Claude ou Gemini).');
   const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
@@ -193,6 +199,11 @@ export async function videoScript({ product = {}, tone = 'animado', duration = 3
   const prompt = `Você é roteirista de vídeos curtos para afiliados da Shopee no Brasil (TikTok, Reels, Shopee Vídeo).
 Crie um roteiro de ${duration} segundos, tom ${tone}, em português do Brasil, para o produto abaixo. Não invente características técnicas que não estejam nos dados; quando faltar informação, fale de uso e benefício de forma genérica. Não prometa preço fixo (pode mudar).
 
+TIPO DE VÍDEO: ${FORMATS[format] || FORMATS.narracao}
+${format === 'primeira_pessoa' ? (used
+    ? 'A criadora já tem/usou o produto: pode falar da experiência dela de forma natural, sem exagerar nem inventar resultados específicos.'
+    : 'A criadora AINDA NÃO usou o produto: ela está mostrando/apresentando o que encontrou. Não escreva frases como "eu uso há meses", "mudou minha vida" ou resultados pessoais; use "olha o que eu achei", "repara nesse detalhe", "fiquei de olho nesse".') : ''}
+
 Produto: ${p.productName || ''}
 Preço: R$ ${p.priceMin || '?'}${p.priceMax && p.priceMax !== p.priceMin ? ' até R$ ' + p.priceMax : ''}
 Vendidos: ${p.sales ?? '?'} | Nota: ${p.ratingStar ?? '?'} | Desconto: ${p.priceDiscountRate ? p.priceDiscountRate + '%' : 'não informado'}
@@ -200,7 +211,7 @@ Loja: ${p.shopName || '?'}
 ${extra ? 'Observações da criadora: ' + extra : ''}
 
 Responda SOMENTE com JSON válido neste formato:
-{"gancho":"frase dos 3 primeiros segundos","cenas":[{"tempo":"0-3s","fala":"...","imagem":"o que mostrar"}],"cta":"chamada para comprar no link","legenda":"legenda do post","hashtags":["#..."],"ideias_extra":["variação de gancho 1","variação de gancho 2"]}`;
+{"gancho":"frase dos 3 primeiros segundos","cenas":[{"tempo":"0-3s","fala":"${format === 'texto' ? '' : (format === 'narracao' ? 'texto da narração (voz em off)' : 'o que a criadora fala olhando para a câmera')}","texto_tela":"texto curto que aparece escrito na tela","imagem":"o que mostrar / como filmar"}],"cta":"chamada para comprar no link","legenda":"legenda do post","hashtags":["#..."],"musica":"sugestão de estilo de música de fundo","ideias_extra":["variação de gancho 1","variação de gancho 2"]}${format === 'texto' ? '\nNeste tipo o campo "fala" fica vazio: tudo é comunicado pelo "texto_tela" (frases curtas, fáceis de ler em 2 segundos).' : ''}`;
 
   const models = ai.model ? [ai.model] : MODELS[provider];
   let last;
@@ -209,7 +220,7 @@ Responda SOMENTE com JSON válido neste formato:
     if (last.ok) {
       const m = last.text.match(/\{[\s\S]*\}/);
       let script; try { script = JSON.parse(m ? m[0] : last.text); } catch { script = { texto: last.text }; }
-      return { ...script, _ia: `${NAMES[provider]} · ${model}` };
+      return { ...script, _ia: `${NAMES[provider]} · ${model}`, _formato: format };
     }
     if (!modelMissing(last.status, last.error) || ai.model) break;
   }
