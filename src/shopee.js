@@ -219,31 +219,33 @@ export class ShopeeAffiliate {
   // Regras: a palavra-chave nunca é descartada sozinha; nada de filtro é ignorado em
   // silêncio (sempre vem aviso); só campos de exibição são lembrados, e por 10 minutos.
   async smartQuery(root, argObj, pageInfo = '') {
-    const st = (learned[root] ||= { badFields: new Set(), at: 0, kwMode: 'inline' });
-    if (Date.now() - st.at > 10 * 60 * 1000) { st.badFields = new Set(); st.kwMode = 'inline'; }
-    const a = Object.fromEntries(Object.entries(argObj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+    const st = (learned[root] ||= { badFields: new Set(), at: 0, kwMode: 'inline', maxLimit: 0 });
+    if (Date.now() - st.at > 10 * 60 * 1000) Object.assign(st, { badFields: new Set(), kwMode: 'inline', maxLimit: 0 });
+    let a = Object.fromEntries(Object.entries(argObj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+    if (st.maxLimit && (a.limit ?? 50) > st.maxLimit) a = { ...a, limit: st.maxLimit };
     const fieldsNow = () => topLevel(FIELDS[root]).filter((f) => !st.badFields.has(fieldName(f)));
     const firstWord = (k) => String(k).trim().split(/\s+/)[0];
     // Formas de mandar a palavra-chave: direto na consulta, como variável GraphQL, ou só a 1ª palavra.
-    const prep = (args, mode = st.kwMode) => {
+    const prep = (args, mode) => {
       if (!args.keyword || mode === 'inline') return { args, decl: '', vars: undefined };
       if (mode === 'firstWord') return { args: { ...args, keyword: firstWord(args.keyword) }, decl: '', vars: undefined };
       return { args: { ...args, keyword: { __var: 'kw' } }, decl: `query Busca($kw: ${mode === 'varsReq' ? 'String!' : 'String'}) `, vars: { kw: String(args.keyword) } };
     };
-    const run = (fields, args, mode, pi = pageInfo) => {
+    const run = (fields, args, mode = st.kwMode, pi = pageInfo) => {
       const p = prep(args, mode);
       return this.query(`${p.decl}{ ${root}${gqlArgs(p.args)} { nodes { ${fields.join(' ')} } ${pi} } }`, { variables: p.vars });
     };
-    const notes = [];
-    const done = (r) => {
-      if (st.badFields.size) notes.push('Campos que a Shopee não devolve para esta conta: ' + [...st.badFields].join(', '));
-      return notes.length ? { ...r, diagnostic: notes } : r;
-    };
     const okQ = (r) => !r.errors?.length;
-    // Só considera falha se repetir (evita falso positivo por instabilidade).
-    const fails = async (fields, args, mode) => {
-      for (let i = 0; i < 2; i++) { if (okQ(await run(fields, args, mode))) return false; await sleep(250); }
-      return true;
+    const works = async (fields, args, mode) => { // só conta como falha se falhar 2 vezes
+      for (let i = 0; i < 2; i++) { if (okQ(await run(fields, args, mode))) return true; await sleep(250); }
+      return false;
+    };
+    const notes = [];
+    const tried = [];
+    const done = (r) => {
+      if (st.badFields.size) notes.push('Campos que a Shopee não devolve nesta busca e ficaram de fora: ' + [...st.badFields].join(', '));
+      if (!okQ(r)) notes.push(`A Shopee continuou recusando. Testei: ${tried.join(', ') || 'repetir a busca'}. Toque em Console GraphQL → Diagnóstico e me mande o print.`);
+      return notes.length ? { ...r, diagnostic: notes } : r;
     };
 
     let r = await run(fieldsNow(), a);
@@ -252,87 +254,75 @@ export class ShopeeAffiliate {
     r = await run(fieldsNow(), a);
     if (!isSystemError(r)) return done(r);
     const original = r;
-    const tried = [];
 
-    // Lista por categoria/loja exige o ID correspondente.
     if ([3, 4, 5].includes(a.listType) && !a.matchId) {
       return { ...original, diagnostic: [a.listType === 5 ? 'Para a lista "Loja", preencha o ID da loja.' : 'Para listas de categoria, preencha o ID da categoria.'] };
     }
 
-    // Busca final: tenta o limite pedido; se a Shopee recusar, usa 20.
-    const final = async (args) => {
-      const r1 = await run(fieldsNow(), args);
-      if (okQ(r1) || (args.limit ?? 0) <= 20) return r1;
-      const r2 = await run(fieldsNow(), { ...args, limit: 20 });
-      if (okQ(r2)) notes.push(`Mostrei 20 por página (a Shopee recusou ${args.limit}).`);
-      return r2;
-    };
-
-    // 1) limite por página
-    if ((a.limit ?? 0) > 20) {
-      tried.push('20 por página');
-      const r2 = await run(fieldsNow(), { ...a, limit: 20 });
-      if (okQ(r2)) { notes.push(`A Shopee recusou ${a.limit} por página; mostrei 20.`); return done(r2); }
-    }
     const core = topLevel(CORE[root] || FIELDS[root]);
     const coreNames = core.map(fieldName);
 
-    // 2) algum campo de exibição?
-    tried.push('só campos essenciais');
-    if (!(await fails(core, { ...a, limit: 1 }))) {
-      for (const f of fieldsNow().filter((f) => !coreNames.includes(fieldName(f)))) {
-        if (await fails([...core, f], { ...a, limit: 1 })) st.badFields.add(fieldName(f));
-      }
-      st.at = Date.now();
-      return done(await final(a));
+    // Passo A: achar uma forma da consulta funcionar com 1 item (modo da palavra-chave e filtros).
+    const modes = a.keyword ? [['inline', ''], ['vars', 'palavra como variável'], ['varsReq', 'palavra como variável obrigatória'], ['firstWord', `só "${a.keyword && firstWord(a.keyword)}"`]] : [['inline', '']];
+    let base = null; // { args, mode }
+    for (const [mode, label] of modes) {
+      if (label) tried.push(label);
+      if (await works(core, { ...a, limit: 1 }, mode)) { base = { args: a, mode }; break; }
     }
-
-    // 3) a forma de mandar a palavra-chave
-    if (a.keyword) {
-      for (const [mode, label] of [['vars', 'palavra como variável'], ['varsReq', 'palavra como variável obrigatória'], ['firstWord', `só "${firstWord(a.keyword)}"`]]) {
+    if (!base) {
+      const LABEL = { listType: 'Lista', sortType: 'Ordenar', page: 'Página', isAMSOffer: 'Só AMS', isKeySeller: 'Só vendedores-chave', productCatId: 'ID categoria', shopId: 'ID da loja', itemId: 'ID do item', matchId: 'ID da lista', shopType: 'Tipo de loja' };
+      const candidates = [];
+      if (a.listType !== undefined && a.keyword) { const { keyword, ...x } = a; candidates.push([x, 'lista sem palavra-chave', 'A Shopee não aceita palavra-chave junto com essa lista. Mostrei a lista completa; use "Filtrar resultados" para refinar.']); }
+      for (const k of Object.keys(a).filter((k) => LABEL[k])) { const { [k]: _, ...x } = a; candidates.push([x, 'sem ' + LABEL[k], `A Shopee recusou o filtro "${LABEL[k]}" nesta combinação; busquei sem ele.`]); }
+      if (a.keyword) candidates.push([{ keyword: a.keyword, limit: a.limit }, 'só a palavra-chave', 'A Shopee só aceitou a palavra-chave sem os outros filtros; busquei só por ela.']);
+      outer: for (const [x, label, note] of candidates) {
         tried.push(label);
-        if (!(await fails(core, { ...a, limit: 1 }, mode))) {
-          st.kwMode = mode; st.at = Date.now();
-          if (mode === 'firstWord') notes.push(`A Shopee só aceitou buscar por uma palavra; busquei por "${firstWord(a.keyword)}". Use "Filtrar resultados" para refinar.`);
-          return done(await final(a));
+        for (const [mode] of modes) {
+          if (await works(core, { ...x, limit: 1 }, mode)) { base = { args: x, mode }; notes.push(note); break outer; }
         }
       }
     }
+    if (!base) {
+      if (a.keyword) {
+        const { keyword, ...x } = a;
+        tried.push('sem a palavra-chave');
+        if (await works(core, { ...x, limit: 1 }, 'inline')) {
+          return { ...original, diagnostic: [`A Shopee recusa buscas com "${a.keyword}" nesta conta (sem a palavra a busca funciona). Testei: ${tried.join(', ')}. Toque em Console GraphQL → Diagnóstico e me mande o print.`] };
+        }
+      }
+      return done(original);
+    }
+    st.kwMode = base.mode; st.at = Date.now();
+    if (base.mode === 'firstWord') notes.push(`A Shopee só aceitou buscar por uma palavra; busquei por "${firstWord(a.keyword)}". Use "Filtrar resultados" para refinar.`);
+    let args = base.args;
+    const want = args.limit ?? 50;
 
-    // 4) combinação de filtros: lista + palavra-chave
-    if (a.listType !== undefined && a.keyword) {
-      const { keyword, ...semPalavra } = a;
-      tried.push('lista sem palavra-chave');
-      if (!(await fails(core, { ...semPalavra, limit: 1 }))) {
-        notes.push('A Shopee não aceita palavra-chave junto com essa lista. Mostrei a lista completa; use "Filtrar resultados" para refinar.');
-        return done(await final(semPalavra));
+    // Passo B: com vários itens. Às vezes um produto da lista tem um campo quebrado e a Shopee falha.
+    tried.push(`${want} itens só com campos essenciais`);
+    let lim = want;
+    if (!(await works(core, { ...args, limit: lim }))) {
+      // descobre até quantos itens a Shopee devolve
+      lim = 0;
+      for (const n of [20, 10, 5, 2]) {
+        if (n >= want) continue;
+        tried.push(`${n} por página`);
+        if (await works(core, { ...args, limit: n })) { lim = n; break; }
+      }
+      if (!lim) lim = 1;
+      st.maxLimit = lim;
+      notes.push(`A Shopee só devolveu ${lim} por página nesta busca (algum produto da lista deve ter dados com problema).`);
+      args = { ...args, limit: lim };
+    }
+
+    // Passo C: campos de exibição, testados com o mesmo número de itens.
+    if (!(await works(fieldsNow(), args))) {
+      tried.push('campos um a um');
+      for (const f of fieldsNow().filter((f) => !coreNames.includes(fieldName(f)))) {
+        if (!(await works([...core, f], args))) st.badFields.add(fieldName(f));
       }
     }
-    // 5) algum outro filtro (nunca a palavra-chave): tenta tirar um de cada vez
-    const LABEL = { sortType: 'Ordenar', listType: 'Lista', page: 'Página', isAMSOffer: 'Só AMS', isKeySeller: 'Só vendedores-chave', productCatId: 'ID categoria', shopId: 'ID da loja', itemId: 'ID do item', matchId: 'ID da lista', shopType: 'Tipo de loja' };
-    for (const k of Object.keys(a).filter((k) => LABEL[k])) {
-      const { [k]: _, ...sem } = a;
-      tried.push('sem ' + LABEL[k]);
-      if (!(await fails(core, { ...sem, limit: 1 }))) {
-        notes.push(`A Shopee recusou o filtro "${LABEL[k]}" nesta combinação; busquei sem ele.`);
-        return done(await final(sem));
-      }
-    }
-    // 6) a palavra-chave sozinha, sem nenhum outro filtro?
-    if (a.keyword) {
-      tried.push('só a palavra-chave');
-      if (!(await fails(core, { keyword: a.keyword, limit: 1 }))) {
-        notes.push('A Shopee só aceitou a palavra-chave sem os outros filtros; busquei só por ela.');
-        return done(await final({ keyword: a.keyword, limit: a.limit }));
-      }
-      // 7) sem a palavra-chave funciona? então o problema é a palavra
-      const { keyword, ...semPalavra } = a;
-      tried.push('sem a palavra-chave');
-      if (!(await fails(core, { ...semPalavra, limit: 1 }))) {
-        return { ...original, diagnostic: [`A Shopee recusa buscas com a palavra-chave "${a.keyword}" nesta conta (sem ela a busca funciona). Testei: ${tried.join(', ')}. Toque em Console GraphQL → Diagnóstico e me mande o print.`] };
-      }
-    }
-    return { ...original, diagnostic: [`A Shopee recusou todas as variações (${tried.join(', ')}). Pode ser instabilidade dela; tente em alguns minutos. Se continuar, toque em Console GraphQL → Diagnóstico e me mande o print.`] };
+    st.at = Date.now();
+    return done(await run(fieldsNow(), args));
   }
 
   // Bateria de testes para descobrir o que a conta aceita.
