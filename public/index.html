@@ -625,14 +625,27 @@ function renderReport(tab, r, out) {
     ${shown.length ? `<div class="tw"><table><thead><tr>${cols.map(([k, l, c]) => `<th class="${c || ''}" onclick="sortBy('${tab}','${k}')">${l}</th>`).join('')}</tr></thead><tbody>${shown.map((i) => `<tr onclick='openObj(${esc(JSON.stringify(i))})'>${cols.map(([k, , c]) => `<td class="${c || ''}">${k === 'purchaseTime' ? dt(i[k]) : cell(k, i[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">Nenhuma conversão no período.</div>'}`;
 }
 
+// Tabela genérica: as colunas vêm do que a Shopee devolver.
+function genericTable(rows, onRow) {
+  const cols = [...new Set(rows.slice(0, 50).flatMap((x) => Object.keys(flatten(x))))].slice(0, 14);
+  return `<div class="tw"><table><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join('')}${onRow ? '<th></th>' : ''}</tr></thead><tbody>${rows.map((x, i) => {
+    const f = flatten(x);
+    return `<tr>${cols.map((c) => `<td>${esc(fmtVal(c.split('.').pop(), f[c]))}</td>`).join('')}${onRow ? `<td>${onRow(x, i)}</td>` : ''}</tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+const feedIdOf = (f) => f.datafeedId ?? f.feedId ?? f.id ?? f.datafeedID ?? Object.entries(f).find(([k]) => /id$/i.test(k))?.[1];
 function renderFeeds(r, out) {
-  out.innerHTML = notes(r) + (r.nodes.length ? `<div class="tw"><table><thead><tr><th>Feed</th><th>Descrição</th><th>Data</th><th>Modo</th><th class="num">Itens</th><th></th></tr></thead><tbody>${r.nodes.map((f) =>
-    `<tr><td>${esc(f.datafeedName || f.datafeedId)}</td><td>${esc(f.description)}</td><td>${esc(f.date)}</td><td>${esc(f.feedMode)}</td><td class="num">${int(f.totalCount)}</td><td><button class="b sm" onclick="feedData('${esc(f.datafeedId)}')">Ver itens</button></td></tr>`).join('')}</tbody></table></div><div id="feedRows" style="margin-top:14px"></div>` : '<div class="empty">Nenhum feed.</div>');
+  out.innerHTML = notes(r) + (r.nodes.length
+    ? genericTable(r.nodes, (f) => `<button class="b sm" onclick="feedData('${esc(feedIdOf(f))}')">Ver itens</button>`) + '<div id="feedRows" style="margin-top:14px"></div>'
+    : `<div class="empty">Nenhum feed.${r.raw ? '<pre style="text-align:left;margin-top:10px">' + esc(JSON.stringify(r.raw, null, 2)) + '</pre>' : ''}</div>`);
 }
 async function feedData(id) {
+  $('#feedRows').innerHTML = '<div class="note">Carregando itens do feed…</div>';
   const r = await api('feed-data', { datafeedId: id, limit: 200 });
-  const rows = (r.data?.getItemFeedData?.rows || []).map((x) => { try { return JSON.parse(x.columns); } catch { return x; } });
-  $('#feedRows').innerHTML = notes(r) + `<div class="bar"><span class="info">${rows.length} linhas</span><button class="b sm" onclick='download("feed.json",${esc(JSON.stringify(JSON.stringify(rows)))},"application/json")'>JSON</button></div><pre>${esc(JSON.stringify(rows.slice(0, 50), null, 2))}</pre>`;
+  const rows = (r.nodes || []).map((x) => { const c = x.columns ?? x.data ?? x.row; if (typeof c === 'string') { try { return JSON.parse(c); } catch { return x; } } return x; });
+  state.feedRows = rows;
+  $('#feedRows').innerHTML = notes(r) + `<div class="bar"><span class="info">${rows.length} linhas</span><button class="b sm" onclick="download('feed.csv',toCSV(state.feedRows),'text/csv')">CSV</button><button class="b sm" onclick="download('feed.json',JSON.stringify(state.feedRows,null,2),'application/json')">JSON</button></div>` +
+    (rows.length ? genericTable(rows.slice(0, 100)) : `<pre>${esc(JSON.stringify(r.raw ?? r, null, 2))}</pre>`);
 }
 
 /* ---------------- links ---------------- */

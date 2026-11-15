@@ -148,6 +148,9 @@ export function removeField(query, field) {
   return out;
 }
 
+// Campos de estrutura (listas/paginação): nunca são removidos automaticamente.
+const STRUCTURAL = new Set(['nodes', 'pageInfo', 'rows', 'edges', 'items', 'node']);
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ----------------------------- cliente ---------------------------- */
@@ -208,7 +211,7 @@ export class ShopeeAffiliate {
         for (const m of msg.matchAll(/Cannot query field\s+"([A-Za-z0-9_]+)"/gi)) bad.add(m[1]);
         for (const m of msg.matchAll(/field\s+"?([A-Za-z0-9_]+)"?\s+(?:is not defined|not found|does not exist)/gi)) bad.add(m[1]);
       }
-      const removable = [...bad].filter((f) => !stripped.includes(f));
+      const removable = [...bad].filter((f) => !stripped.includes(f) && !STRUCTURAL.has(f));
       if (!removable.length) return { ...json, stripped, query: q };
       for (const f of removable) { q = removeField(q, f); stripped.push(f); }
     }
@@ -332,14 +335,77 @@ export class ShopeeAffiliate {
   }
 
   // Lista os feeds de catálogo (FULL ou DELTA).
-  listItemFeeds(a = {}) {
-    const args = gqlArgs({ feedMode: enumOf(a.feedMode || 'FULL') });
-    return this.query(`{ listItemFeeds${args} { nodes { ${FIELDS.listItemFeeds} } } }`);
+  /* ---------- descoberta da estrutura pela própria API (introspecção) ---------- */
+  async describeType(name) {
+    this._types ||= new Map();
+    if (this._types.has(name)) return this._types.get(name);
+    const T = 'kind name ofType { kind name ofType { kind name ofType { kind name } } }';
+    const r = await this.raw(`{ __type(name: ${JSON.stringify(name)}) { name kind fields { name args { name type { ${T} } } type { ${T} } } enumValues { name } } }`);
+    const t = r.data?.__type || null;
+    if (t) this._types.set(name, t);
+    else if (r.errors?.length) throw new Error('A Shopee não informou a estrutura da API: ' + r.errors[0].message);
+    return t;
+  }
+  // Monta a seleção com todos os campos simples (e objetos até "depth" níveis) de um tipo.
+  async selectionFor(typeName, depth = 2) {
+    const t = await this.describeType(typeName);
+    const unwrap = (x) => { while (x && (x.kind === 'NON_NULL' || x.kind === 'LIST')) x = x.ofType; return x; };
+    const parts = [];
+    for (const f of t?.fields || []) {
+      if ((f.args || []).some((a) => a.type?.kind === 'NON_NULL')) continue; // exige argumento
+      const base = unwrap(f.type);
+      if (!base) continue;
+      if (base.kind === 'SCALAR' || base.kind === 'ENUM') parts.push(f.name);
+      else if (base.kind === 'OBJECT' && depth > 0) {
+        const sub = await this.selectionFor(base.name, depth - 1);
+        if (sub) parts.push(`${f.name} { ${sub} }`);
+      }
+    }
+    return parts.join(' ');
+  }
+  // Descobre o tipo de retorno e os argumentos de uma consulta raiz (ex.: listItemFeeds).
+  async rootField(name) {
+    const q = await this.describeType('Query');
+    const f = (q?.fields || []).find((x) => x.name === name);
+    if (!f) throw new Error(`A consulta ${name} não existe para esta conta.`);
+    let t = f.type; while (t && (t.kind === 'NON_NULL' || t.kind === 'LIST')) t = t.ofType;
+    return { returnType: t?.name, args: f.args || [] };
+  }
+  // Primeira lista de objetos dentro da resposta (nodes, items, rows...).
+  static firstList(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    for (const v of Object.values(obj)) {
+      if (Array.isArray(v) && v.some((x) => x && typeof x === 'object')) return v;
+    }
+    for (const v of Object.values(obj)) { const l = ShopeeAffiliate.firstList(v); if (l) return l; }
+    return null;
+  }
+  async dynamicRoot(name, wanted) {
+    try {
+      const { returnType, args } = await this.rootField(name);
+      const sel = await this.selectionFor(returnType, 2);
+      const given = {};
+      for (const a of args) {
+        if (wanted[a.name] === undefined || wanted[a.name] === '') continue;
+        let t = a.type; while (t && (t.kind === 'NON_NULL' || t.kind === 'LIST')) t = t.ofType;
+        given[a.name] = t?.kind === 'ENUM' ? enumOf(wanted[a.name]) : (t?.name === 'Int' || t?.name === 'Float' ? num(wanted[a.name]) : wanted[a.name]);
+      }
+      const missing = args.filter((a) => a.type?.kind === 'NON_NULL' && given[a.name] === undefined).map((a) => a.name);
+      if (missing.length) return { errors: [{ message: `Faltam dados obrigatórios: ${missing.join(', ')}` }] };
+      const r = await this.raw(`{ ${name}${gqlArgs(given)} { ${sel} } }`);
+      const root = r.data?.[name];
+      return { ...r, nodes: ShopeeAffiliate.firstList(root) || [], raw: root, argNames: args.map((a) => a.name) };
+    } catch (e) {
+      return { errors: [{ message: e.message }], nodes: [] };
+    }
   }
 
+  // Feeds de catálogo: campos descobertos na própria API.
+  listItemFeeds(a = {}) {
+    return this.dynamicRoot('listItemFeeds', { feedMode: a.feedMode || 'FULL' });
+  }
   getItemFeedData(a = {}) {
-    const args = gqlArgs({ datafeedId: a.datafeedId, offset: num(a.offset) ?? 0, limit: num(a.limit) ?? 500 });
-    return this.query(`{ getItemFeedData${args} { rows { columns } } }`);
+    return this.dynamicRoot('getItemFeedData', { datafeedId: a.datafeedId, feedId: a.datafeedId, id: a.datafeedId, offset: a.offset ?? 0, limit: a.limit ?? 200 });
   }
 
   // Tenta descobrir o schema completo (pode estar bloqueado pela Shopee).
