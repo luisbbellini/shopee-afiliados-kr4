@@ -288,12 +288,50 @@ export class ShopeeAffiliate {
     if (!matchId && (lt === 3 || lt === 4)) { matchId = num(a.productCatId); a = { ...a, productCatId: undefined }; }
     if (!matchId && lt === 5) { matchId = num(a.shopId); a = { ...a, shopId: undefined }; }
     a = { ...a, matchId };
+    // Com uma lista escolhida, pede à Shopee só a lista; palavra-chave e ordem são aplicadas aqui.
+    if ([1, 2, 3, 4, 5].includes(lt) && !a._listRaw) return this.listMode(a, lt);
     return this.smartQuery('productOfferV2', {
       keyword: a.keyword, shopId: num(a.shopId), itemId: num(a.itemId), productCatId: num(a.productCatId),
       listType: num(a.listType), matchId: num(a.matchId), sortType: num(a.sortType),
       isAMSOffer: bool(a.isAMSOffer), isKeySeller: bool(a.isKeySeller),
       page: num(a.page) ?? 1, limit: num(a.limit) ?? 50,
     }, PAGE_INFO_PAGED, { budgetMs: a._budgetMs });
+  }
+
+  // Listas da Shopee (Maior comissão, Top performance, categoria, loja) vêm na ordem delas e
+  // não combinam com palavra-chave/ordenação: busca a lista pura, depois filtra e ordena aqui.
+  async listMode(a, lt) {
+    const NAMES = { 1: 'Maior comissão', 2: 'Top performance', 3: 'Categoria', 4: 'Categoria detalhada', 5: 'Loja' };
+    const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const words = norm(a.keyword).split(/\s+/).filter((w) => w.length > 1);
+    const sort = num(a.sortType) || 1;
+    const limit = num(a.limit) ?? 50;
+    const startPage = num(a.page) ?? 1;
+    const pages = words.length ? 3 : 1; // com palavra-chave, olha mais itens da lista para filtrar
+    const base = { ...a, keyword: undefined, sortType: undefined, _listRaw: true, limit: words.length ? 50 : limit };
+    let nodes = [], pageInfo = null, last, read = 0;
+    for (let i = 0; i < pages; i++) {
+      last = await this.productOffers({ ...base, page: startPage + i, _budgetMs: i ? 7000 : a._budgetMs });
+      if (last.errors?.length) break;
+      const root = last.data?.productOfferV2 || {};
+      nodes.push(...(root.nodes || [])); pageInfo = root.pageInfo; read = i + 1;
+      if (!root.pageInfo?.hasNextPage) break;
+    }
+    if (!nodes.length) return last;
+    const total = nodes.length;
+    if (words.length) nodes = nodes.filter((n) => { const t = norm(n.productName); return words.every((w) => t.includes(w)); });
+    const by = {
+      2: (x, y) => (+y.sales || 0) - (+x.sales || 0),
+      3: (x, y) => (+y.priceMin || 0) - (+x.priceMin || 0),
+      4: (x, y) => (+x.priceMin || 0) - (+y.priceMin || 0),
+      5: (x, y) => (+y.commissionRate || 0) - (+x.commissionRate || 0) || (+y.commission || 0) - (+x.commission || 0),
+    }[sort];
+    if (by) nodes.sort(by);
+    const notes = [];
+    if (words.length) notes.push(`Lista "${NAMES[lt]}": a Shopee monta essa lista sem palavra-chave. Filtrei por "${a.keyword}" nos ${total} primeiros itens da lista e encontrei ${nodes.length}.`);
+    if (by) notes.push(`Ordenado aqui por ${({ 2: 'mais vendidos', 3: 'maior preço', 4: 'menor preço', 5: 'maior comissão' })[sort]}. Para ver a ordem original da lista, use Ordenar = Relevância.`);
+    const pi = pageInfo ? { ...pageInfo, page: startPage + read - 1, hasNextPage: words.length ? false : pageInfo.hasNextPage } : undefined;
+    return { data: { productOfferV2: { nodes, pageInfo: pi } }, diagnostic: notes.length ? notes : undefined };
   }
 
   // Lojas com comissão. sortType: 1 mais recentes | 2 maior comissão | 3 lojas populares

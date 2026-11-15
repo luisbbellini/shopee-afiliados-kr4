@@ -204,9 +204,9 @@
   <form class="form" data-api="products">
     <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="ex: fone bluetooth"></div>
     <div class="f"><label>Ordenar</label><select name="sortType">
-      <option value="1">Relevância</option><option value="2" selected>Mais vendidos</option>
+      <option value="1">Relevância / ordem da lista</option><option value="2" selected>Mais vendidos</option>
       <option value="5">Maior comissão</option><option value="3">Maior preço</option><option value="4">Menor preço</option></select></div>
-    <div class="f"><label>Lista</label><select name="listType">
+    <div class="f"><label>Lista</label><select name="listType" onchange="onListChange(this)">
       <option value="">Padrão</option><option value="0">Todos</option><option value="1">Maior comissão</option>
       <option value="2">Top performance</option><option value="3">Categoria (usa ID categoria)</option><option value="4">Categoria detalhada (usa ID categoria)</option><option value="5">Loja (usa ID da loja)</option></select></div>
     <div class="f"><label>ID da loja</label><input name="shopId" inputmode="numeric" style="width:120px"></div>
@@ -220,6 +220,7 @@
     <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="5" min="1" max="50" style="width:80px"></div>
     <button class="b p">Buscar produtos</button>
   </form>
+  <div class="note" id="listHint" hidden>Com uma <b>lista</b> escolhida, a Shopee devolve a lista pronta dela. A palavra-chave vira um <b>filtro</b> sobre essa lista e a ordem fica a da lista (ou a que você escolher em Ordenar).</div>
   <div class="out"></div>
 </section>
 
@@ -638,6 +639,13 @@ function applyTheme(t) {
 }
 function cycleTheme() { const cur = lsGet('theme') || 'auto'; const next = { auto: 'light', light: 'dark', dark: 'auto' }[cur]; applyTheme(next); toast('Tema: ' + THEMES[next].slice(2)); }
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (!lsGet('theme')) applyTheme('auto'); });
+function onListChange(sel) {
+  const f = sel.form, on = sel.value !== '';
+  $('#listHint').hidden = !on;
+  if (on) f.sortType.value = '1'; // ordem original da lista
+  if (['3', '4'].includes(sel.value) && !f.productCatId.value) toast('Preencha o ID categoria');
+  if (sel.value === '5' && !f.shopId.value) toast('Preencha o ID da loja');
+}
 function logout() { setKey(''); toast('Senha removida deste aparelho'); }
 function formData(form) {
   const o = {};
@@ -728,7 +736,7 @@ function notes(r) {
   if (r.errors?.length) h += `<div class="note err"><b>Erro da API:</b> ${esc(r.errors.map((e) => e.message + (e.extensions?.code ? ' [' + e.extensions.code + ']' : '')).join(' · '))}</div>`;
   if ((r.errors || []).some((e) => /10020|Invalid Signature/i.test(e.message + (e.extensions?.code ?? ''))))
     h += `<div class="note warn"><b>Assinatura inválida:</b> o App ID ou o Secret não batem com os da Shopee. Se um Secret novo foi gerado, toque em <button class="b sm" onclick="openCreds()">⚙ Credenciais</button> e cole o novo.</div>`;
-  if (r.diagnostic?.length) h += `<div class="note warn"><b>Ajuste automático:</b> ${r.diagnostic.map(esc).join('<br>')}</div>`;
+  if (r.diagnostic?.length) h += `<div class="note warn"><b>Observação:</b> ${r.diagnostic.map(esc).join('<br>')}</div>`;
   if (r.stripped?.length) h += `<div class="note warn">Campos que a API não aceitou e foram removidos automaticamente: ${r.stripped.map((f) => '<span class="tag">' + esc(f) + '</span>').join(' ')}</div>`;
   return h;
 }
