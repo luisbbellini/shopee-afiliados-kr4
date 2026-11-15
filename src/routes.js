@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { ShopeeAffiliate, clearLearned } from './shopee.js';
 import { mockResponse } from './mock.js';
 import { findOpportunities } from './opportunities.js';
-import { favList, favSave, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
+import { favList, favSave, aiTest, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
 import { getJSON, itemHistory } from './store.js';
 
 const MOCK = process.env.SHOPEE_MOCK === '1';
@@ -47,7 +47,7 @@ const routes = {
     ok: true, mock: MOCK, locked: !!PANEL_KEY, source,
     appId: mask(client?.appId || ''), endpoint: client?.endpoint,
     check: { appId: fp(client?.appId || ''), secret: fp(client?.secret || '') },
-    store: storeEnabled(), aiServer: !!process.env.ANTHROPIC_API_KEY,
+    store: storeEnabled(), aiServer: !!(process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY),
   }),
 
   // Testa se as credenciais funcionam com uma consulta mínima.
@@ -77,7 +77,8 @@ const routes = {
   'GET /api/cron': async (b, ctx) => dailyJob(ctx.client, ctx.key, { panelUrl: ctx.panelUrl }),
 
   // Roteiro com IA (chave do aparelho ou da Vercel)
-  'POST /api/script': async (b, ctx) => ({ script: await videoScript(b, ctx.aiKey) }),
+  'POST /api/script': async (b, ctx) => ({ script: await videoScript(b, ctx.ai) }),
+  'POST /api/ai/test': async (b, ctx) => aiTest(ctx.ai),
 
   // Fotos
   'POST /api/image': async (b) => { const { buf, type } = await fetchImage(b.url); return { __binary: buf, contentType: type, filename: slug(b.name) + '.' + extOf(type) }; },
@@ -128,7 +129,7 @@ function mask(s = '') { return s.length > 6 ? s.slice(0, 4) + '…' + s.slice(-2
 // Executa uma rota. Retorna { status, body }.
 // Rotas que não precisam das credenciais da Shopee
 const NO_SHOPEE = new Set(['GET /api/status', 'POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history',
-  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
+  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/ai/test', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
 const NEEDS_STORE = new Set(['POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history', 'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/cron/run', 'GET /api/cron']);
 const safeEq = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -152,7 +153,11 @@ export async function handle(method, pathname, body = {}, headers = {}) {
   }
   const ctx = getClient(key === 'GET /api/status' || key === 'GET /api/cron' ? {} : headers);
   ctx.panelUrl = headers['x-forwarded-host'] || headers.host ? `https://${headers['x-forwarded-host'] || headers.host}` : '';
-  ctx.aiKey = String(headers['x-ai-key'] || '').trim() || process.env.ANTHROPIC_API_KEY || '';
+  // IA: chave do aparelho (cabeçalhos) ou da Vercel (AI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY ou GEMINI_API_KEY)
+  const devKey = String(headers['x-ai-key'] || '').trim();
+  ctx.ai = devKey
+    ? { key: devKey, provider: String(headers['x-ai-provider'] || 'auto'), model: String(headers['x-ai-model'] || '').trim() }
+    : { key: process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY || '', provider: process.env.AI_PROVIDER || 'auto', model: process.env.AI_MODEL || '' };
   if (!ctx.client && !NO_SHOPEE.has(key)) {
     return { status: 400, body: { errors: [{ message: 'Credenciais da Shopee não configuradas. Abra ⚙ Configurações no painel.' }] } };
   }

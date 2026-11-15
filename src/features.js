@@ -137,9 +137,58 @@ export async function dailyJob(client, key, { panelUrl, budgetMs = 45000 } = {})
   return summary;
 }
 
-/* ---------------- roteiro com IA ---------------- */
-export async function videoScript({ product = {}, tone = 'animado', duration = 30, extra = '' }, apiKey) {
-  if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (Anthropic API key).');
+/* ---------------- roteiro com IA (ChatGPT, Claude ou Gemini) ---------------- */
+// Descobre a empresa pela chave: sk-ant-… = Anthropic, AIza… = Google, sk-… = OpenAI.
+export function detectProvider(key = '') {
+  const k = String(key).trim();
+  if (k.startsWith('sk-ant-')) return 'anthropic';
+  if (k.startsWith('AIza')) return 'gemini';
+  if (k.startsWith('sk-')) return 'openai';
+  return '';
+}
+// Modelos tentados em ordem (se um não existir na conta, tenta o próximo).
+const MODELS = {
+  openai: ['gpt-5-mini', 'gpt-5-nano', 'gpt-4.1-mini', 'gpt-4o-mini'],
+  anthropic: ['claude-haiku-5-5', 'claude-sonnet-5-5'],
+  gemini: ['gemini-flash-latest', 'gemini-3.5-flash-lite'],
+};
+const NAMES = { openai: 'ChatGPT (OpenAI)', anthropic: 'Claude (Anthropic)', gemini: 'Gemini (Google)' };
+const modelMissing = (status, msg) => status === 404 || /model.*(not.?found|does not exist|not supported|invalid)|unknown model|model_not_found/i.test(msg || '');
+
+async function callAI(provider, apiKey, model, prompt) {
+  try { return await callAIRaw(provider, apiKey, model, prompt); }
+  catch (e) { throw new Error(`${NAMES[provider]}: não consegui conectar à IA (${e.message}). Tente de novo em instantes.`); }
+}
+async function callAIRaw(provider, apiKey, model, prompt) {
+  if (provider === 'openai') {
+    const body = { model, messages: [{ role: 'system', content: 'Responda somente com JSON válido.' }, { role: 'user', content: prompt }], response_format: { type: 'json_object' } };
+    let r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    let j = await r.json().catch(() => ({}));
+    if (r.status === 400 && /response_format/i.test(j.error?.message || '')) { // modelo sem modo JSON
+      delete body.response_format;
+      r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      j = await r.json().catch(() => ({}));
+    }
+    return { ok: r.ok, status: r.status, error: j.error?.message, text: j.choices?.[0]?.message?.content || '' };
+  }
+  if (provider === 'anthropic') {
+    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify({ model, max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, error: j.error?.message, text: (j.content || []).map((c) => c.text || '').join('') };
+  }
+  if (provider === 'gemini') {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } }) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, error: j.error?.message, text: (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('') };
+  }
+  throw new Error('Empresa de IA desconhecida');
+}
+
+export async function videoScript({ product = {}, tone = 'animado', duration = 30, extra = '' }, ai = {}) {
+  const apiKey = String(ai.key || '').trim();
+  if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (ChatGPT, Claude ou Gemini).');
+  const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
+  if (!provider) throw new Error('Não reconheci a chave. Escolha a empresa da IA em ⚙ Configurações.');
   const p = product;
   const prompt = `Você é roteirista de vídeos curtos para afiliados da Shopee no Brasil (TikTok, Reels, Shopee Vídeo).
 Crie um roteiro de ${duration} segundos, tom ${tone}, em português do Brasil, para o produto abaixo. Não invente características técnicas que não estejam nos dados; quando faltar informação, fale de uso e benefício de forma genérica. Não prometa preço fixo (pode mudar).
@@ -152,16 +201,37 @@ ${extra ? 'Observações da criadora: ' + extra : ''}
 
 Responda SOMENTE com JSON válido neste formato:
 {"gancho":"frase dos 3 primeiros segundos","cenas":[{"tempo":"0-3s","fala":"...","imagem":"o que mostrar"}],"cta":"chamada para comprar no link","legenda":"legenda do post","hashtags":["#..."],"ideias_extra":["variação de gancho 1","variação de gancho 2"]}`;
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: process.env.AI_MODEL || 'claude-haiku-5-5', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }),
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error('IA: ' + (j.error?.message || 'HTTP ' + res.status));
-  const text = (j.content || []).map((c) => c.text || '').join('');
-  const m = text.match(/\{[\s\S]*\}/);
-  try { return JSON.parse(m ? m[0] : text); } catch { return { texto: text }; }
+
+  const models = ai.model ? [ai.model] : MODELS[provider];
+  let last;
+  for (const model of models) {
+    last = await callAI(provider, apiKey, model, prompt);
+    if (last.ok) {
+      const m = last.text.match(/\{[\s\S]*\}/);
+      let script; try { script = JSON.parse(m ? m[0] : last.text); } catch { script = { texto: last.text }; }
+      return { ...script, _ia: `${NAMES[provider]} · ${model}` };
+    }
+    if (!modelMissing(last.status, last.error) || ai.model) break;
+  }
+  const hint = last.status === 401 ? ' (chave inválida)' : last.status === 429 ? ' (sem créditos ou limite atingido)' : '';
+  throw new Error(`${NAMES[provider]}: ${last.error || 'HTTP ' + last.status}${hint}`);
+}
+
+// Teste rápido da chave (resposta mínima, custo desprezível)
+export async function aiTest(ai = {}) {
+  const apiKey = String(ai.key || '').trim();
+  if (!apiKey) throw new Error('Nenhuma chave de IA configurada.');
+  const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
+  if (!provider) throw new Error('Não reconheci a chave. Escolha a empresa da IA.');
+  const models = ai.model ? [ai.model] : MODELS[provider];
+  let last;
+  for (const model of models) {
+    last = await callAI(provider, apiKey, model, 'Responda exatamente com este JSON: {"ok":true}');
+    if (last.ok) return { ok: true, provider: NAMES[provider], model };
+    if (!modelMissing(last.status, last.error) || ai.model) break;
+  }
+  const hint = last.status === 401 ? ' (chave inválida)' : last.status === 429 ? ' (sem créditos ou limite atingido)' : '';
+  throw new Error(`${NAMES[provider]}: ${last.error || 'HTTP ' + last.status}${hint}`);
 }
 
 /* ---------------- fotos ---------------- */

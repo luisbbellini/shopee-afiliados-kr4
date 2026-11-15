@@ -179,7 +179,7 @@ function scriptText(s) {
 function renderScript(s) {
   if (s.texto) return `<pre>${esc(s.texto)}</pre>`;
   window._lastScript = s;
-  return `<div class="bar"><button class="b sm p" onclick="copy(scriptText(window._lastScript))">Copiar roteiro inteiro</button></div>
+  return `<div class="bar"><button class="b sm p" onclick="copy(scriptText(window._lastScript))">Copiar roteiro inteiro</button>${s._ia ? `<span class="meta">Gerado por ${esc(s._ia)}</span>` : ''}</div>
     <div class="scb"><h3>Gancho (3 primeiros segundos)</h3><p class="big">${esc(s.gancho)}</p><button class="b sm" onclick="copy(window._lastScript.gancho)">Copiar</button></div>
     <div class="scb"><h3>Cenas</h3><ol class="cenas">${(s.cenas || []).map((c) => `<li><b>${esc(c.tempo)}</b> ${esc(c.fala)}${c.imagem ? `<div class="meta">Mostrar: ${esc(c.imagem)}</div>` : ''}</li>`).join('')}</ol></div>
     <div class="scb"><h3>Chamada para comprar</h3><p>${esc(s.cta)}</p></div>
@@ -281,8 +281,9 @@ function hbar(rows) {
 
 /* ---------------- configurações (IA e alertas) ---------------- */
 async function loadSettingsUI() {
-  $('#aiKey').value = lsGet('aiKey');
-  $('#aiNote').textContent = window._aiServer ? 'Há uma chave da IA configurada na Vercel; esta, se preenchida, tem prioridade.' : 'Sem chave na Vercel: preencha aqui para usar o Roteiro IA neste aparelho.';
+  $('#aiKey').value = lsGet('aiKey'); $('#aiProv').value = lsGet('aiProvider') || 'auto'; $('#aiModel').value = lsGet('aiModel');
+  $('#aiNote').textContent = 'Aceita chave do ChatGPT (OpenAI), Claude (Anthropic) ou Gemini (Google). ' + (window._aiServer ? 'Há uma chave configurada na Vercel; esta, se preenchida, tem prioridade.' : 'Fica salva só neste aparelho.');
+  aiDetectLabel();
   const box = $('#alertBox');
   if (!STORE) { box.innerHTML = '<div class="note warn" style="margin:0">Alertas e histórico precisam do banco de dados. Veja <b>Manual → Ativar banco de dados</b>.</div>'; return; }
   const r = await api('settings/get', {});
@@ -298,7 +299,20 @@ async function loadSettingsUI() {
     <div class="bar" style="margin:0"><button class="b p" onclick="saveAlerts()">Salvar alertas</button><button class="b" onclick="testAlert()">Enviar teste</button><button class="b" onclick="runNow()">Rodar agora</button></div>
     <div id="alertMsg" class="note" style="margin:0">${r.lastCron ? `Última execução: ${new Date(r.lastCron.at).toLocaleString('pt-BR')} · ${esc((r.lastCron.log || []).join(' · ') || 'sem nichos')}${r.lastCron.delivery?.errors?.length ? ' · ' + esc(r.lastCron.delivery.errors.join(', ')) : ''}` : 'A tarefa roda todo dia por volta das 7h.'}</div>`;
 }
-function saveAiKey() { lsSet('aiKey', $('#aiKey').value.trim()); toast('Chave da IA salva neste aparelho'); }
+const AI_NAMES = { openai: 'ChatGPT (OpenAI)', anthropic: 'Claude (Anthropic)', gemini: 'Gemini (Google)' };
+function detectAI(k) { k = (k || '').trim(); return k.startsWith('sk-ant-') ? 'anthropic' : k.startsWith('AIza') ? 'gemini' : k.startsWith('sk-') ? 'openai' : ''; }
+function aiDetectLabel() {
+  const k = $('#aiKey').value, sel = $('#aiProv').value, d = detectAI(k);
+  $('#aiDetected').textContent = !k ? '' : sel !== 'auto' ? `Usando: ${AI_NAMES[sel]}` : d ? `Chave reconhecida: ${AI_NAMES[d]}` : 'Não reconheci a chave: escolha a empresa acima.';
+}
+async function saveAiKey() {
+  lsSet('aiKey', $('#aiKey').value.trim()); lsSet('aiProvider', $('#aiProv').value); lsSet('aiModel', $('#aiModel').value.trim());
+  const m = $('#aiMsg'); m.hidden = false; m.className = 'note'; m.style.color = ''; m.textContent = 'Testando a chave…';
+  const r = await api('ai/test', {});
+  if (r.ok) { m.style.color = 'var(--ok)'; m.textContent = `✓ Funcionou: ${r.provider} · ${r.model}`; }
+  else { m.className = 'note err'; m.textContent = '✗ ' + (r.errors?.[0]?.message || 'erro'); }
+}
+function clearAiKey() { lsSet('aiKey', ''); lsSet('aiModel', ''); $('#aiKey').value = ''; $('#aiModel').value = ''; aiDetectLabel(); toast('Chave da IA apagada deste aparelho'); }
 async function saveAlerts() {
   const r = await api('settings/save', { niches: $('#stNiches').value.split('\n'), minScore: $('#stScore').value, minSales: $('#stSales').value, ntfyTopic: $('#stNtfy').value, telegramToken: $('#stTgTok').value, telegramChatId: $('#stTgChat').value });
   $('#alertMsg').textContent = r.errors ? '✗ ' + r.errors[0].message : '✓ Alertas salvos.';

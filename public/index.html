@@ -451,7 +451,7 @@
 
     <details><summary>6. Botões do topo</summary><div class="body">
       <ul>
-        <li><b>⚙ Configurações</b>: App ID e Secret da Shopee, chave da IA e alertas diários.</li>
+        <li><b>⚙ Configurações</b>: App ID e Secret da Shopee, chave da IA (ChatGPT, Claude ou Gemini) e alertas diários.</li>
         <li><b>Instalar app</b>: aparece quando o celular permite instalar o painel como aplicativo.</li>
         <li><b>◐ Tema</b>: alterna entre <b>Automático</b> (segue o modo do celular), <b>Claro</b> e <b>Escuro</b>. A escolha fica salva no aparelho.</li>
         <li><b>Limpar cache</b>: o painel guarda buscas por 5 minutos para ficar rápido. Limpe para forçar dados novos.</li>
@@ -463,7 +463,7 @@
       <ul>
         <li><b>Invalid Signature [10020]</b>: o Secret mudou ou foi colado errado. Abra <b>⚙ Configurações</b> e cole o Secret atual.</li>
         <li><b>Banco de dados não configurado</b>: Em alta, alertas e lista compartilhada precisam do banco. Veja <b>Manual → 9. Ativar banco de dados</b>.</li>
-        <li><b>Configure a chave da IA</b>: o Roteiro IA precisa da chave. Veja <b>Manual → 11. Roteiro com IA</b>.</li>
+        <li><b>Configure a chave da IA</b>: o Roteiro IA precisa de uma chave (ChatGPT, Claude ou Gemini). Veja <b>Manual → 11. Roteiro com IA</b>.</li>
         <li><b>System Error [10000]</b>: instabilidade da Shopee. O painel já tenta de novo sozinho; se continuar, espere alguns minutos.</li>
         <li><b>Nenhum resultado</b>: diminua os filtros (vendas mínimas, nota mínima) ou mude a palavra-chave.</li>
         <li><b>Senha do painel inválida</b>: digite a senha de novo (toque em <b>Sair</b> e faça uma busca).</li>
@@ -504,13 +504,21 @@
       <p>Para que a tarefa diária funcione, o <b>Secret da Shopee também precisa estar atualizado na Vercel</b> (Settings → Environment Variables → <span class="tagline">SHOPEE_SECRET</span>), porque ela roda no servidor, sem o celular.</p>
     </div></details>
 
-    <details><summary>11. Roteiro com IA</summary><div class="body">
+    <details><summary>11. Roteiro com IA (ChatGPT, Claude ou Gemini)</summary><div class="body">
+      <p>Funciona com a chave de qualquer uma das três. O painel reconhece a empresa pelo começo da chave.</p>
+      <p><b>ChatGPT (OpenAI)</b></p>
       <ol>
-        <li>Crie uma conta em <b>console.anthropic.com</b>, adicione créditos (a partir de US$ 5) e gere uma <b>API key</b>.</li>
-        <li>Cole em <b>⚙ Configurações → Roteiro com IA</b> e toque em <b>Salvar</b>.</li>
+        <li>Entre em <b>platform.openai.com</b> com a mesma conta do ChatGPT.</li>
+        <li>Em <b>Billing</b>, adicione créditos (a partir de US$ 5). A assinatura do ChatGPT Plus <b>não</b> inclui uso da API: é cobrança separada.</li>
+        <li>Em <b>API keys</b> → <b>Create new secret key</b>, copie a chave (começa com <span class="tagline">sk-proj-</span> ou <span class="tagline">sk-</span>). Ela só aparece uma vez.</li>
+      </ol>
+      <p><b>Claude (Anthropic):</b> console.anthropic.com → créditos → API keys (começa com <span class="tagline">sk-ant-</span>).<br>
+      <b>Gemini (Google):</b> aistudio.google.com → Get API key (começa com <span class="tagline">AIza</span>).</p>
+      <ol>
+        <li>Cole a chave em <b>⚙ Configurações → Roteiro com IA</b> e toque em <b>Salvar e testar</b>. Deve aparecer "✓ Funcionou".</li>
         <li>Em <b>Para gravar</b> (ou no detalhe de um produto), toque em <b>Roteiro IA</b>, escolha o tom e a duração e gere.</li>
       </ol>
-      <p>Cada roteiro custa uma fração de centavo de dólar. O roteiro fica salvo junto do produto na lista.</p>
+      <p>Cada roteiro custa uma fração de centavo de dólar. O roteiro fica salvo junto do produto na lista e mostra qual IA o gerou.</p>
     </div></details>
 
     <details><summary>12. Glossário</summary><div class="body">
@@ -550,8 +558,16 @@
   </div>
   <h3 class="sec">Roteiro com IA</h3>
   <p class="meta" style="display:block" id="aiNote"></p>
-  <div class="f"><label for="aiKey">Chave da API da Anthropic</label>
-    <div style="display:flex;gap:6px"><input id="aiKey" type="password" autocomplete="off" spellcheck="false" style="flex:1" placeholder="sk-ant-…"><button class="b sm" onclick="saveAiKey()">Salvar</button></div></div>
+  <div class="f"><label for="aiProv">Empresa da IA</label>
+    <select id="aiProv" onchange="aiDetectLabel()"><option value="auto">Automático (pela chave)</option><option value="openai">ChatGPT (OpenAI)</option><option value="anthropic">Claude (Anthropic)</option><option value="gemini">Gemini (Google)</option></select></div>
+  <div class="f"><label for="aiKey">Chave da API</label>
+    <div style="display:flex;gap:6px"><input id="aiKey" type="password" autocomplete="off" spellcheck="false" style="flex:1" placeholder="sk-proj-… / sk-ant-… / AIza…" oninput="aiDetectLabel()">
+    <button class="b sm" type="button" onclick="const i=$('#aiKey');i.type=i.type==='password'?'text':'password'">Mostrar</button></div>
+    <span class="meta" id="aiDetected"></span></div>
+  <details><summary class="meta" style="cursor:pointer">Avançado: escolher o modelo</summary>
+    <div class="f" style="margin-top:8px"><label for="aiModel">Modelo (vazio = automático)</label><input id="aiModel" autocomplete="off" placeholder="ex: gpt-5-mini"></div></details>
+  <div class="bar" style="margin:0"><button class="b p" onclick="saveAiKey()">Salvar e testar</button><button class="b" onclick="clearAiKey()">Apagar chave</button></div>
+  <div id="aiMsg" class="note" style="margin:0" hidden></div>
   <h3 class="sec">Alertas diários</h3>
   <div id="alertBox" style="display:flex;flex-direction:column;gap:10px"></div>
 </div>
@@ -604,8 +620,12 @@ async function api(path, body, retry = true) {
 function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch { return (window._ls || {})[k] || ''; } }
 function lsSet(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { (window._ls ||= {})[k] = v; } }
 function credHeaders() {
-  const sec = lsGet('shopeeSecret'); if (!sec) return {};
-  const h = { 'x-shopee-secret': sec }; const app = lsGet('shopeeAppId'); if (app) h['x-shopee-app-id'] = app; return h;
+  const h = {};
+  const sec = lsGet('shopeeSecret');
+  if (sec) { h['x-shopee-secret'] = sec; const app = lsGet('shopeeAppId'); if (app) h['x-shopee-app-id'] = app; }
+  const ai = lsGet('aiKey');
+  if (ai) { h['x-ai-key'] = ai; h['x-ai-provider'] = lsGet('aiProvider') || 'auto'; const m = lsGet('aiModel'); if (m) h['x-ai-model'] = m; }
+  return h;
 }
 function credSourceLabel() { return lsGet('shopeeSecret') ? 'Usando as credenciais salvas neste aparelho.' : 'Usando as credenciais configuradas na Vercel.'; }
 function openCreds() {
