@@ -84,6 +84,15 @@
   .empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:var(--r)}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--soft);color:var(--muted)}
   a{color:var(--accent)}
+  .score{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:24px;padding:0 7px;border-radius:99px;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+  .score.hi{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+  .score.mid{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+  .score.lo{background:var(--soft);color:var(--muted)}
+  .card .rank{position:absolute;top:8px;left:8px;box-shadow:0 1px 3px #0003;background:var(--panel)}
+  .card{position:relative}
+  .why{display:flex;flex-wrap:wrap;gap:4px}
+  .why .tag{font-size:11px}
+  .why .tag.bad{color:var(--warn)}
   .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 24px));background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;z-index:25;display:none;flex-direction:column;gap:12px}
   .modal.on{display:flex} .modal h2{margin:0;font-size:16px} .modal .f{min-width:0}
   #credShade{z-index:24}
@@ -119,6 +128,7 @@
 </header>
 <nav id="tabs">
   <button data-t="products" class="on">Produtos</button>
+  <button data-t="opportunities">Oportunidades</button>
   <button data-t="shops">Lojas</button>
   <button data-t="offers">Campanhas Shopee</button>
   <button data-t="links">Gerar links</button>
@@ -150,6 +160,21 @@
     <div class="f"><label>Máx. páginas</label><input name="maxPages" type="number" value="5" min="1" max="50" style="width:80px"></div>
     <button class="b p">Buscar produtos</button>
   </form>
+  <div class="out"></div>
+</section>
+
+<!-- OPORTUNIDADES -->
+<section id="opportunities">
+  <form class="form" data-api="opportunities">
+    <div class="f grow"><label for="oKw">Palavra-chave</label><input id="oKw" name="keyword" placeholder="ex: fone bluetooth (vazio = geral)"></div>
+    <div class="f"><label>ID categoria</label><input name="productCatId" inputmode="numeric" style="width:120px"></div>
+    <div class="f"><label>Páginas analisadas</label><select name="pages"><option value="1">1 (50 produtos)</option><option value="3" selected>3 (150)</option><option value="6">6 (300)</option></select></div>
+    <div class="f"><label>Vendas mínimas</label><input name="minSales" type="number" value="100" min="0" style="width:100px"></div>
+    <div class="f"><label>Nota mínima</label><input name="minRating" type="number" value="4.5" min="0" max="5" step="0.1" style="width:80px"></div>
+    <div class="f"><label>Comissão mínima (%)</label><input name="minCommission" type="number" value="0" min="0" max="100" style="width:80px"></div>
+    <button class="b p">Encontrar oportunidades</button>
+  </form>
+  <div class="note">A Shopee não informa quantos afiliados divulgam cada produto. A nota (0–100) é uma <b>estimativa</b>: vende bem, boa avaliação, boa comissão, <b>fora das listas de destaque</b> que todo afiliado vê, oferta nova e comissão extra do vendedor. Confirme no TikTok antes de gravar.</div>
   <div class="out"></div>
 </section>
 
@@ -440,6 +465,7 @@ function render(tab) {
   const r = state[tab]; const out = $(`#${tab} .out`);
   if (tab === 'conversions' || tab === 'validated') return renderReport(tab, r, out);
   if (tab === 'feeds') return renderFeeds(r, out);
+  if (tab === 'opportunities') return renderOpps(r, out);
   const f = (r.filter || '').toLowerCase();
   let rows = r.nodes.filter((n) => !f || JSON.stringify(n).toLowerCase().includes(f));
   if (r.sort) rows = sortRows(rows, r.sort);
@@ -512,6 +538,35 @@ function sortRows(rows, { k, d }) {
     if (!isNaN(nx) && !isNaN(ny)) return (nx - ny) * d;
     return String(x ?? '').localeCompare(String(y ?? '')) * d;
   });
+}
+
+/* ---------------- oportunidades ---------------- */
+const scoreCls = (v) => v >= 70 ? 'hi' : v >= 50 ? 'mid' : 'lo';
+function tiktokUrl(name) { return 'https://www.tiktok.com/search?q=' + encodeURIComponent(String(name || '').split(/\s+/).slice(0, 5).join(' ')); }
+function renderOpps(r, out) {
+  const f = (r.filter || '').toLowerCase();
+  const rows = r.nodes.filter((x) => !f || JSON.stringify(x).toLowerCase().includes(f));
+  out.innerHTML = notes(r) + `
+    <div class="bar"><span class="info">${int(rows.length)} oportunidades de ${int(r.analyzed || 0)} produtos analisados · ${int(r.radarSize?.top || 0) + int(r.radarSize?.commission || 0)} itens nas listas de destaque · ${((r.ms || 0) / 1000).toFixed(1)} s</span>
+      <span style="flex:1"></span>
+      <input placeholder="Filtrar resultados…" value="${esc(r.filter || '')}" oninput="state.opportunities.filter=this.value;render('opportunities');this.focus();this.setSelectionRange(this.value.length,this.value.length)" style="width:200px">
+      <button class="b sm" onclick="download('oportunidades.csv',toCSV(state.opportunities.nodes.map(({parts,why,...x})=>({...x,motivos:why.join(' | ')}))),'text/csv')">CSV</button></div>` +
+    (rows.length ? '<div class="grid">' + rows.map((n) => `
+    <div class="card" onclick="openItem('opportunities',${state.opportunities.nodes.indexOf(n)})">
+      <span class="score rank ${scoreCls(n.score)}" title="Nota de oportunidade">${n.score}</span>
+      <img loading="lazy" src="${esc(n.imageUrl)}" alt="">
+      <div class="c">
+        <div class="t">${esc(n.productName)}</div>
+        <div class="price">${brl(n.priceMin)}</div>
+        <div class="meta"><span>${int(n.sales)} vendidos</span><span>★ ${n.ratingStar ? (+n.ratingStar).toFixed(1) : '—'}</span></div>
+        <div class="com"><span>Comissão ${pct(n.commissionRate)}</span><b>${brl(n.commission)}</b></div>
+        <div class="why">${n.why.map((w) => `<span class="tag ${/disputado/.test(w) ? 'bad' : ''}">${esc(w)}</span>`).join('')}</div>
+        <div class="acts" onclick="event.stopPropagation()">
+          <button class="b sm" onclick="copy('${esc(n.offerLink)}')">Copiar link</button>
+          <a class="b sm" style="text-decoration:none;color:inherit" href="${tiktokUrl(n.productName)}" target="_blank" rel="noopener">Ver no TikTok</a>
+        </div>
+      </div>
+    </div>`).join('') + '</div>' : '<div class="empty">Nenhum produto passou nos filtros. Diminua as vendas mínimas ou a nota mínima.</div>');
 }
 
 /* ---------------- relatórios ---------------- */
@@ -601,7 +656,9 @@ function openObj(o) {
       ${o.productLink || o.originalLink ? `<button class="b sm p" onclick="quickLink('${esc(o.productLink || o.originalLink)}')">Gerar link curto c/ subId</button>` : ''}
       ${o.productLink || o.originalLink ? `<a class="b sm" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="${esc(o.productLink || o.originalLink)}">Abrir na Shopee</a>` : ''}
       ${o.shopId && o.productName ? `<button class="b sm" onclick="moreFromShop(${+o.shopId})">Mais desta loja</button>` : ''}
+      ${o.productName ? `<a class="b sm" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="${tiktokUrl(o.productName)}">Ver no TikTok</a>` : ''}
       </div><div id="qlink" class="meta"></div>` : ''}
+    ${o.parts ? `<div><h3>Nota de oportunidade: <span class="score ${scoreCls(o.score)}">${o.score}</span></h3><div class="kv">${[['vendas','Vendas (até 30)'],['nota','Avaliação (até 10)'],['comissao','Comissão (até 25)'],['foraDoRadar','Fora das listas de destaque (até 20)'],['ofertaNova','Oferta nova (até 10)'],['vendedorPagaExtra','Vendedor paga extra (até 5)']].map(([k,l]) => `<div>${l}</div><div>${o.parts[k]}</div>`).join('')}</div></div>` : ''}
     <div class="kv">${Object.entries(flatten(o)).map(([k, v]) => `<div>${esc(k)}</div><div>${esc(fmtVal(k.split('.').pop(), v))}</div>`).join('')}</div>
     <details><summary class="meta" style="cursor:pointer">JSON bruto</summary><pre>${esc(JSON.stringify(o, null, 2))}</pre></details>`;
   $('#drawer').classList.add('on'); $('.shade').classList.add('on');

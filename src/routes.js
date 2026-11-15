@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { ShopeeAffiliate, clearLearned } from './shopee.js';
 import { mockResponse } from './mock.js';
+import { findOpportunities } from './opportunities.js';
 
 const MOCK = process.env.SHOPEE_MOCK === '1';
 const PANEL_KEY = process.env.PANEL_KEY || '';
@@ -54,6 +55,7 @@ const routes = {
   },
 
   'POST /api/products': (b, ctx) => paged('productOffers', b, ctx),
+  'POST /api/opportunities': (b, { client, key }) => findOpportunities(client, key, b),
   'POST /api/shops': (b, ctx) => paged('shopOffers', b, ctx),
   'POST /api/offers': (b, ctx) => paged('shopeeOffers', b, ctx),
   'POST /api/conversions': (b, ctx) => scrolled('conversionReport', b, ctx),

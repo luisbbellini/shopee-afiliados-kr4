@@ -20,13 +20,13 @@ export function mockResponse(query) {
   }
   if (query.includes('productOfferV2')) {
     return { data: { productOfferV2: { pageInfo, nodes: Array.from({ length: n }, (_, i) => {
-      const id = page * 100 + i; const p = r(19, 299); const rate = r(0.02, 0.2);
+      const lt = /listType/.test(query); const id = page * 100 + i + (lt && i % 3 ? 7000 : 0); const p = r(19, 299); const rate = r(0.02, 0.2);
       return { itemId: 2e10 + id, productName: pick(nomes) + ' ' + id, productLink: 'https://shopee.com.br/product/1/' + id,
         offerLink: 'https://s.shopee.com.br/mock' + id, imageUrl: img(id), priceMin: String(p), priceMax: String(r(p, p * 1.4)),
         priceDiscountRate: Math.floor(r(0, 60)), sales: Math.floor(r(10, 50000)), ratingStar: String(r(3.8, 5)),
-        commissionRate: String(rate), sellerCommissionRate: String(r(0, rate)), shopeeCommissionRate: String(r(0, 0.05)),
+        commissionRate: String(rate), sellerCommissionRate: String(Math.random() < .4 ? r(0.01, rate) : 0), shopeeCommissionRate: String(r(0, 0.05)),
         commission: String((p * rate).toFixed(2)), shopId: 1000 + (id % 5), shopName: pick(lojas), shopType: [1],
-        productCatIds: [100001, 100010, 100100 + (id % 7)], periodStartTime: now() - 86400, periodEndTime: now() + 86400 * 30 };
+        productCatIds: [100001, 100010, 100100 + (id % 7)], periodStartTime: now() - Math.floor(r(0, 40)) * 86400, periodEndTime: now() + 86400 * 30 };
     }) } } };
   }
   if (query.includes('shopOfferV2')) {
