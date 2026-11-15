@@ -55,6 +55,8 @@
   .com{display:flex;justify-content:space-between;align-items:center;background:var(--soft);border-radius:6px;padding:5px 8px;font-size:12.5px}
   .com b{color:var(--ok)}
   .acts{display:flex;gap:6px;margin-top:auto}
+  .acts + .acts{margin-top:0}
+  .acts .b{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .tw{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);max-height:70vh}
   table{border-collapse:collapse;width:100%;font-size:12.5px}
   th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
@@ -499,7 +501,7 @@ function productCards(rows) {
         <div class="meta"><span>${esc(n.shopName || '')}</span><span>${shopType(n.shopType)}</span></div>
         <div class="acts" onclick="event.stopPropagation()">
           <button class="b sm" onclick="copy('${esc(n.offerLink)}')">Copiar link</button>
-          <a class="b sm" style="text-decoration:none;color:inherit" href="${esc(n.productLink)}" target="_blank" rel="noopener">Abrir</a>
+          ${linkBtn(shopeeApp(n.productLink), 'Shopee')}
         </div>
       </div>
     </div>`).join('') + '</div>';
@@ -543,6 +545,18 @@ function sortRows(rows, { k, d }) {
 /* ---------------- oportunidades ---------------- */
 const scoreCls = (v) => v >= 70 ? 'hi' : v >= 50 ? 'mid' : 'lo';
 function tiktokUrl(name) { return 'https://www.tiktok.com/search?q=' + encodeURIComponent(String(name || '').split(/\s+/).slice(0, 5).join(' ')); }
+// Abre no aplicativo: no Android usa um "intent" com o pacote do app; se o app não estiver
+// instalado (ou não abrir aquele endereço), cai no site. No iPhone o próprio link abre o app instalado.
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const PKG = { shopee: 'com.shopee.br', tiktok: 'com.zhiliaoapp.musically' };
+function appLink(url, app) {
+  if (!IS_ANDROID || !url) return url;
+  const u = new URL(url);
+  return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.replace(':', '')};package=${PKG[app]};S.browser_fallback_url=${encodeURIComponent(url)};end`;
+}
+const shopeeApp = (url) => appLink(url, 'shopee');
+const tiktokApp = (name) => appLink(tiktokUrl(name), 'tiktok');
+const linkBtn = (href, label) => `<a class="b sm" style="text-decoration:none;color:inherit;text-align:center" href="${esc(href)}" ${IS_ANDROID ? '' : 'target="_blank" rel="noopener"'}>${label}</a>`;
 function renderOpps(r, out) {
   const f = (r.filter || '').toLowerCase();
   const rows = r.nodes.filter((x) => !f || JSON.stringify(x).toLowerCase().includes(f));
@@ -563,7 +577,10 @@ function renderOpps(r, out) {
         <div class="why">${n.why.map((w) => `<span class="tag ${/disputado/.test(w) ? 'bad' : ''}">${esc(w)}</span>`).join('')}</div>
         <div class="acts" onclick="event.stopPropagation()">
           <button class="b sm" onclick="copy('${esc(n.offerLink)}')">Copiar link</button>
-          <a class="b sm" style="text-decoration:none;color:inherit" href="${tiktokUrl(n.productName)}" target="_blank" rel="noopener">Ver no TikTok</a>
+        </div>
+        <div class="acts" onclick="event.stopPropagation()">
+          ${linkBtn(shopeeApp(n.productLink), 'Shopee')}
+          ${linkBtn(tiktokApp(n.productName), 'TikTok')}
         </div>
       </div>
     </div>`).join('') + '</div>' : '<div class="empty">Nenhum produto passou nos filtros. Diminua as vendas mínimas ou a nota mínima.</div>');
@@ -654,9 +671,9 @@ function openObj(o) {
     ${link ? `<div class="bar">
       ${o.offerLink ? `<button class="b sm" onclick="copy('${esc(o.offerLink)}')">Copiar link de afiliado</button>` : ''}
       ${o.productLink || o.originalLink ? `<button class="b sm p" onclick="quickLink('${esc(o.productLink || o.originalLink)}')">Gerar link curto c/ subId</button>` : ''}
-      ${o.productLink || o.originalLink ? `<a class="b sm" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="${esc(o.productLink || o.originalLink)}">Abrir na Shopee</a>` : ''}
+      ${o.productLink || o.originalLink ? linkBtn(shopeeApp(o.productLink || o.originalLink), 'Abrir na Shopee') : ''}
       ${o.shopId && o.productName ? `<button class="b sm" onclick="moreFromShop(${+o.shopId})">Mais desta loja</button>` : ''}
-      ${o.productName ? `<a class="b sm" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="${tiktokUrl(o.productName)}">Ver no TikTok</a>` : ''}
+      ${o.productName ? linkBtn(tiktokApp(o.productName), 'Ver no TikTok') : ''}
       </div><div id="qlink" class="meta"></div>` : ''}
     ${o.parts ? `<div><h3>Nota de oportunidade: <span class="score ${scoreCls(o.score)}">${o.score}</span></h3><div class="kv">${[['vendas','Vendas (até 30)'],['nota','Avaliação (até 10)'],['comissao','Comissão (até 25)'],['foraDoRadar','Fora das listas de destaque (até 20)'],['ofertaNova','Oferta nova (até 10)'],['vendedorPagaExtra','Vendedor paga extra (até 5)']].map(([k,l]) => `<div>${l}</div><div>${o.parts[k]}</div>`).join('')}</div></div>` : ''}
     <div class="kv">${Object.entries(flatten(o)).map(([k, v]) => `<div>${esc(k)}</div><div>${esc(fmtVal(k.split('.').pop(), v))}</div>`).join('')}</div>
