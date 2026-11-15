@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import { ShopeeAffiliate, clearLearned } from './shopee.js';
 import { mockResponse } from './mock.js';
 import { findOpportunities } from './opportunities.js';
+import { favList, favSave, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
+import { getJSON, itemHistory } from './store.js';
 
 const MOCK = process.env.SHOPEE_MOCK === '1';
 const PANEL_KEY = process.env.PANEL_KEY || '';
@@ -45,6 +47,7 @@ const routes = {
     ok: true, mock: MOCK, locked: !!PANEL_KEY, source,
     appId: mask(client?.appId || ''), endpoint: client?.endpoint,
     check: { appId: fp(client?.appId || ''), secret: fp(client?.secret || '') },
+    store: storeEnabled(), aiServer: !!process.env.ANTHROPIC_API_KEY,
   }),
 
   // Testa se as credenciais funcionam com uma consulta mínima.
@@ -54,8 +57,31 @@ const routes = {
     return { ok: !r.errors?.length && !!r.data, source, error: err || null };
   },
 
-  'POST /api/products': (b, ctx) => paged('productOffers', b, ctx),
-  'POST /api/opportunities': (b, { client, key }) => findOpportunities(client, key, b),
+  'POST /api/products': async (b, ctx) => { const r = await paged('productOffers', b, ctx); snap(r.nodes); return r; },
+  'POST /api/opportunities': async (b, { client, key }) => { const r = await findOpportunities(client, key, b); snap(r.all); delete r.all; return r; },
+
+  // Lista "Para gravar"
+  'POST /api/fav/list': async () => ({ items: await favList() }),
+  'POST /api/fav/save': async (b) => ({ item: await favSave(b.item || b) }),
+  'POST /api/fav/remove': async (b) => { await favRemove(b.itemId); return { ok: true }; },
+
+  // Histórico / Em alta
+  'POST /api/trending': async (b) => trending({ days: Number(b.days) || 7, minDelta: Number(b.minDelta) || 1, limit: 150 }),
+  'POST /api/history': async (b) => ({ points: await itemHistory(b.itemId, 30) }),
+
+  // Configurações e alertas
+  'POST /api/settings/get': async () => ({ settings: await getSettingsPublic(), lastCron: await getJSON('lastCron', null) }),
+  'POST /api/settings/save': async (b) => { await saveSettings(b); return { settings: await getSettingsPublic() }; },
+  'POST /api/alerts/test': async (b, ctx) => notify(await getSettings(), 'Shopee Afiliados', 'Teste de alerta: está funcionando! ✅', ctx.panelUrl),
+  'POST /api/cron/run': async (b, ctx) => dailyJob(ctx.client, ctx.key, { panelUrl: ctx.panelUrl }),
+  'GET /api/cron': async (b, ctx) => dailyJob(ctx.client, ctx.key, { panelUrl: ctx.panelUrl }),
+
+  // Roteiro com IA (chave do aparelho ou da Vercel)
+  'POST /api/script': async (b, ctx) => ({ script: await videoScript(b, ctx.aiKey) }),
+
+  // Fotos
+  'POST /api/image': async (b) => { const { buf, type } = await fetchImage(b.url); return { __binary: buf, contentType: type, filename: slug(b.name) + '.' + extOf(type) }; },
+  'POST /api/images-zip': async (b) => ({ __binary: await imagesZip(b.items || []), contentType: 'application/zip', filename: 'fotos-para-gravar.zip' }),
   'POST /api/shops': (b, ctx) => paged('shopOffers', b, ctx),
   'POST /api/offers': (b, ctx) => paged('shopeeOffers', b, ctx),
   'POST /api/conversions': (b, ctx) => scrolled('conversionReport', b, ctx),
@@ -77,6 +103,9 @@ const routes = {
   'POST /api/cache/clear': async () => { cache.clear(); clearLearned(); return { ok: true }; },
 };
 
+// Guarda a foto do dia das vendas (histórico) sem atrasar a resposta se o banco falhar.
+function snap(nodes) { if (storeEnabled() && nodes?.length) recordSnapshot(nodes).catch(() => {}); }
+
 function paged(method, b = {}, { client, key }) {
   const ck = key + method + JSON.stringify(b);
   if (b.allPages) return cached(ck, () => client.allPages(method, b, { maxPages: Math.min(Number(b.maxPages) || 5, 50) }).then(norm));
@@ -97,21 +126,43 @@ function fp(v = '') { return `${String(v).length}:${crypto.createHash('sha256').
 function mask(s = '') { return s.length > 6 ? s.slice(0, 4) + '…' + s.slice(-2) : s; }
 
 // Executa uma rota. Retorna { status, body }.
+// Rotas que não precisam das credenciais da Shopee
+const NO_SHOPEE = new Set(['GET /api/status', 'POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history',
+  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
+const NEEDS_STORE = new Set(['POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history', 'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/cron/run', 'GET /api/cron']);
+const safeEq = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+// Executa uma rota. Retorna { status, body }.
 export async function handle(method, pathname, body = {}, headers = {}) {
   const key = `${method} ${pathname}`;
   const fn = routes[key];
   if (!fn) return { status: 404, body: { errors: [{ message: 'Rota não encontrada: ' + key }] } };
-  if (PANEL_KEY && key !== 'GET /api/status') {
-    const got = String(headers['x-panel-key'] || '');
-    const ok = got.length === PANEL_KEY.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(PANEL_KEY));
-    if (!ok) return { status: 401, body: { errors: [{ message: 'Senha do painel inválida' }], needKey: true } };
+  const panelOk = !PANEL_KEY || safeEq(String(headers['x-panel-key'] || ''), PANEL_KEY);
+  if (key === 'GET /api/cron') {
+    // Chamada pela tarefa agendada da Vercel
+    const CRON = process.env.CRON_SECRET || '';
+    const auth = String(headers.authorization || '');
+    const ok = (CRON && safeEq(auth, `Bearer ${CRON}`)) || (!CRON && /^vercel-cron/i.test(String(headers['user-agent'] || ''))) || (PANEL_KEY && panelOk);
+    if (!ok) return { status: 401, body: { errors: [{ message: 'Não autorizado' }] } };
+  } else if (key !== 'GET /api/status' && !panelOk) {
+    return { status: 401, body: { errors: [{ message: 'Senha do painel inválida' }], needKey: true } };
   }
-  const ctx = getClient(key === 'GET /api/status' ? {} : headers);
-  if (!ctx.client && key !== 'GET /api/status') {
-    return { status: 400, body: { errors: [{ message: 'Credenciais da Shopee não configuradas. Abra ⚙ Credenciais no painel.' }] } };
+  if (NEEDS_STORE.has(key) && !storeEnabled()) {
+    return { status: 200, body: { noStore: true, errors: [{ message: 'Banco de dados não configurado. Veja Manual → Ativar banco de dados.' }] } };
+  }
+  const ctx = getClient(key === 'GET /api/status' || key === 'GET /api/cron' ? {} : headers);
+  ctx.panelUrl = headers['x-forwarded-host'] || headers.host ? `https://${headers['x-forwarded-host'] || headers.host}` : '';
+  ctx.aiKey = String(headers['x-ai-key'] || '').trim() || process.env.ANTHROPIC_API_KEY || '';
+  if (!ctx.client && !NO_SHOPEE.has(key)) {
+    return { status: 400, body: { errors: [{ message: 'Credenciais da Shopee não configuradas. Abra ⚙ Configurações no painel.' }] } };
   }
   const t0 = Date.now();
-  const out = await fn(body, ctx);
-  return { status: 200, body: { ...out, ms: Date.now() - t0 } };
+  try {
+    const out = await fn(body, ctx);
+    if (out && out.__binary) return { status: 200, binary: out.__binary, contentType: out.contentType, filename: out.filename };
+    return { status: 200, body: { ...out, ms: Date.now() - t0 } };
+  } catch (e) {
+    return { status: 200, body: { errors: [{ message: e.message }], ms: Date.now() - t0 } };
+  }
 }
 export const isMock = MOCK;

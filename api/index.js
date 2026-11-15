@@ -9,7 +9,13 @@ export default async function handler(req, res) {
     let body = req.body;
     if (typeof body === 'string') body = body ? JSON.parse(body) : {};
     const r = await handle(req.method, pathname, body || {}, req.headers);
-    res.status(r.status).setHeader('Cache-Control', 'no-store').json(r.body);
+    res.setHeader('Cache-Control', 'no-store');
+    if (r.binary) {
+      res.setHeader('Content-Type', r.contentType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${r.filename || 'arquivo'}"`);
+      return res.status(200).send(r.binary);
+    }
+    res.status(r.status).json(r.body);
   } catch (e) {
     res.status(500).json({ errors: [{ message: e.message }] });
   }

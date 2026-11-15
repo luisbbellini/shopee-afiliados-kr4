@@ -82,6 +82,7 @@ export async function findOpportunities(client, key, b = {}) {
 
   return {
     nodes: filtered,
+    all: scored, // usado para o histórico diário (removido antes de responder ao painel)
     analyzed: items.length,
     radarSize: { top: rd.top.size, commission: rd.commission.size },
     diagnostic: [...(cand.diagnostic || []), ...rd.notes],

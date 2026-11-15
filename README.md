@@ -88,3 +88,14 @@ npx vercel --prod
 
 Na primeira busca o painel pede a senha (`PANEL_KEY`) e guarda no aparelho. O botão **Sair** apaga.
 Sem `PANEL_KEY` o painel fica aberto para qualquer um com o link — não publique sem ela.
+
+## Novidades (15/11/2026)
+- **Para gravar**: lista com etapas (a gravar / gravado / postado), anotações, link com subId, roteiro e fotos. Banco de dados ou aparelho.
+- **Em alta**: crescimento de vendas a partir de fotos diárias (`snap:<data>` no Redis), alimentadas pelas buscas e pela tarefa diária.
+- **Alertas**: tarefa agendada da Vercel (`/api/cron`, 7h de Brasília) com nichos salvos; envio por ntfy ou Telegram.
+- **Roteiro com IA**: API da Anthropic (`ANTHROPIC_API_KEY` na Vercel ou chave salva no aparelho).
+- **Fotos**: download individual e zip da lista (`/api/image`, `/api/images-zip`).
+- **Ganhos**: gráfico por dia, ranking por subId, meta do mês e calculadora.
+- **App instalável** (PWA): `manifest.webmanifest`, `sw.js`, ícones.
+
+Banco: conectar "Upstash for Redis" no Storage da Vercel (cria `KV_REST_API_URL`/`KV_REST_API_TOKEN`). Opcional: `CRON_SECRET`.

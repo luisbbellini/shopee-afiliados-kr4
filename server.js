@@ -19,7 +19,7 @@ const { handle, isMock } = await import('./src/routes.js');
 if (isMock) console.log('⚠️  Modo de teste (SHOPEE_MOCK=1): dados falsos, nada é enviado à Shopee.');
 
 const PORT = Number(process.env.PORT || 3000);
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -31,6 +31,10 @@ http.createServer(async (req, res) => {
         body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
       }
       const r = await handle(req.method, url.pathname, body, req.headers);
+      if (r.binary) {
+        res.writeHead(200, { 'Content-Type': r.contentType || 'application/octet-stream', 'Content-Disposition': `attachment; filename="${r.filename || 'arquivo'}"` });
+        return res.end(r.binary);
+      }
       res.writeHead(r.status, { 'Content-Type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify(r.body));
     }

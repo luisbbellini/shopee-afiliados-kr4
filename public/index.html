@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shopee Afiliados — Painel</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1d1d1b">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
   :root{
     --bg:#f6f6f4; --panel:#fff; --ink:#1c1c1a; --muted:#6b6b66; --line:#e4e3de; --soft:#efeee9;
@@ -86,6 +91,33 @@
   .empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:var(--r)}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--soft);color:var(--muted)}
   a{color:var(--accent)}
+  .star{position:absolute;top:6px;right:6px;z-index:2;width:34px;height:34px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:17px;line-height:1;cursor:pointer;box-shadow:0 1px 3px #0003}
+  .star.on{color:#f5a623;border-color:#f5a623}
+  .chips{gap:6px}
+  .chip{font:inherit;font-size:13px;padding:6px 11px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+  .chip.on{border-color:var(--accent);color:var(--accent)} .chip b{font-weight:600;margin-left:3px}
+  .favlist{display:flex;flex-direction:column;gap:10px}
+  .fav{display:flex;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+  .fav>img{width:84px;height:84px;object-fit:cover;border-radius:8px;background:var(--soft);flex:none;cursor:pointer}
+  .fav .fc{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .fav .t{font-size:13.5px;line-height:1.3;cursor:pointer}
+  .fav .row2{display:flex;gap:6px} .fav .row2 select{flex:none} .fav .row2 input{flex:1;min-width:0}
+  .acts.wrap{flex-wrap:wrap} .acts.wrap .b{flex:none}
+  .panelbox{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
+  .chartwrap{overflow-x:auto}
+  .progress{height:10px;border-radius:99px;background:var(--soft);overflow:hidden}
+  .progress span{display:block;height:100%;background:var(--accent);border-radius:99px}
+  .calc p{margin:6px 0;font-size:14px}
+  .hbars{display:flex;flex-direction:column;gap:10px}
+  .hb .hl{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+  .hb .hl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .track{height:8px;border-radius:99px;background:var(--soft);margin:4px 0 2px} .track span{display:block;height:100%;border-radius:99px;background:var(--accent);min-width:4px}
+  .modal{max-height:90vh;overflow:auto}
+  .modal .sec{margin:6px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+  #scModal{width:min(560px,calc(100% - 24px))} #scShade{z-index:24}
+  .scb{border-top:1px solid var(--line);padding-top:10px;margin-top:10px} .scb p{margin:4px 0 8px} .scb .big{font-size:16px;font-weight:600}
+  .cenas{padding-left:20px;margin:4px 0} .cenas li{margin-bottom:8px}
+  [hidden]{display:none !important}
   .intro{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--muted)}
   .intro b{color:var(--ink);font-weight:600}
   .manual{max-width:760px;display:flex;flex-direction:column;gap:10px}
@@ -136,13 +168,17 @@
   <h1><span>●</span> Shopee Afiliados</h1>
   <span id="status" class="pill">verificando…</span>
   <div class="spacer"></div>
-  <button class="b sm" onclick="openCreds()">⚙ Credenciais</button>
+  <button class="b sm" onclick="openCreds()">⚙ Configurações</button>
+  <button class="b sm" id="installBtn" hidden onclick="installApp()">Instalar app</button>
   <button class="b sm" onclick="clearCache()">Limpar cache</button>
   <button class="b sm" onclick="logout()" title="Esquecer a senha neste aparelho">Sair</button>
 </header>
 <nav id="tabs">
   <button data-t="products" class="on">Produtos</button>
   <button data-t="opportunities">Oportunidades</button>
+  <button data-t="trending">Em alta</button>
+  <button data-t="favs">Para gravar</button>
+  <button data-t="earnings">Ganhos</button>
   <button data-t="shops">Lojas</button>
   <button data-t="offers">Campanhas Shopee</button>
   <button data-t="links">Gerar links</button>
@@ -193,6 +229,33 @@
   </form>
   <div class="note">A nota é uma <b>estimativa</b>: a Shopee não informa quantos afiliados divulgam cada produto. Veja <b>Manual → Como a nota é calculada</b>.</div>
   <div class="out"></div>
+</section>
+
+<!-- EM ALTA -->
+<section id="trending">
+  <p class="intro">Produtos cujas vendas <b>mais cresceram</b> nos últimos dias, comparando as fotos diárias de vendas guardadas pelo sistema. Crescimento recente é o melhor sinal de produto que está "pegando".</p>
+  <form class="form" onsubmit="loadTrending(event)">
+    <div class="f"><label>Comparar com</label><select name="days"><option value="3">3 dias atrás</option><option value="7" selected>7 dias atrás</option><option value="14">14 dias atrás</option><option value="30">30 dias atrás</option></select></div>
+    <div class="f"><label>Crescimento mínimo (vendas)</label><input name="minDelta" type="number" value="10" min="1" style="width:110px"></div>
+    <button class="b p">Atualizar</button>
+  </form>
+  <div class="out"></div>
+</section>
+
+<!-- PARA GRAVAR -->
+<section id="favs">
+  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, o link com subId e baixe as fotos.</p>
+  <div class="out"></div>
+</section>
+
+<!-- GANHOS -->
+<section id="earnings">
+  <p class="intro">Seus ganhos com os links: comissão por dia, os vídeos (subIds) que mais venderam e a <b>meta do mês</b>, com quantas vendas faltam para chegar lá.</p>
+  <form class="form" onsubmit="loadEarnings(event)">
+    <div class="f"><label>Período do gráfico</label><select name="period"><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="90">90 dias</option></select></div>
+    <button class="b p">Atualizar</button>
+  </form>
+  <div class="out"><div class="empty">Toque em <b>Atualizar</b> para carregar.</div></div>
 </section>
 
 <!-- LOJAS -->
@@ -321,18 +384,19 @@
     <details open><summary>1. Primeiro acesso</summary><div class="body">
       <ol>
         <li>Abra o painel. Na primeira busca ele pede a <b>senha do painel</b>. Ela fica salva no aparelho.</li>
-        <li>Toque em <b>⚙ Credenciais</b>, cole o <b>App ID</b> e o <b>Secret</b> do site de afiliados (affiliate.shopee.com.br → Open API) e toque em <b>Salvar e testar</b>. Deve aparecer "✓ Funcionou!".</li>
+        <li>Toque em <b>⚙ Configurações</b>, cole o <b>App ID</b> e o <b>Secret</b> do site de afiliados (affiliate.shopee.com.br → Open API) e toque em <b>Salvar e testar</b>. Deve aparecer "✓ Funcionou!".</li>
         <li>Pronto. Em outro celular ou computador, repita os passos 1 e 2.</li>
       </ol>
-      <p>Se alguém gerar um <b>Secret novo</b> na Shopee, o antigo para de funcionar: é só colar o novo em <b>⚙ Credenciais</b>.</p>
+      <p>Se alguém gerar um <b>Secret novo</b> na Shopee, o antigo para de funcionar: é só colar o novo em <b>⚙ Configurações</b>.</p>
     </div></details>
 
     <details><summary>2. Rotina recomendada: do produto à venda</summary><div class="body">
       <ol>
         <li><b>Oportunidades</b>: pesquise um nicho (ex.: "vestido plus size") e veja os produtos com nota mais alta.</li>
         <li>Toque em <b>Shopee</b> para ver o produto no app (avaliações, vídeos de outros criadores) e em <b>TikTok</b> para ver quantos vídeos já existem.</li>
-        <li>Escolheu? Toque no card e em <b>Gerar link curto c/ subId</b>. Use um nome que identifique o vídeo, por exemplo <span class="tagline">vestido01-tiktok</span>.</li>
-        <li>Grave o vídeo e publique com esse link.</li>
+        <li>Escolheu? Toque na <b>★</b> para guardar em <b>Para gravar</b>.</li>
+        <li>Em <b>Para gravar</b>: <b>Roteiro IA</b> (gancho, cenas, legenda e hashtags), <b>Gerar link</b> com um subId que identifique o vídeo (ex.: <span class="tagline">vestido01-tiktok</span>) e <b>Foto</b> para a edição.</li>
+        <li>Grave, publique com o link e mude a etapa para <b>Gravado</b> / <b>Postado</b>.</li>
         <li>Depois de alguns dias, abra <b>Conversões</b> e veja o quadro <b>Por subId</b>: ele mostra quanto cada vídeo vendeu.</li>
       </ol>
     </div></details>
@@ -341,6 +405,9 @@
       <ul>
         <li><b>Produtos</b>: busca livre de produtos com comissão, com filtros e ordenação.</li>
         <li><b>Oportunidades</b>: ranking de produtos que vendem bem com provável pouca concorrência.</li>
+        <li><b>Em alta</b>: produtos cujas vendas mais cresceram nos últimos dias (precisa do banco de dados).</li>
+        <li><b>Para gravar</b>: sua lista de produtos escolhidos, com etapas, roteiro com IA, link e fotos.</li>
+        <li><b>Ganhos</b>: comissão por dia, vídeos que mais venderam, meta do mês e quantas vendas faltam.</li>
         <li><b>Lojas</b>: lojas que pagam comissão (ordene por "Maior comissão").</li>
         <li><b>Campanhas Shopee</b>: campanhas e ofertas oficiais da Shopee.</li>
         <li><b>Gerar links</b>: cola vários links da Shopee e gera os links curtos de uma vez.</li>
@@ -375,7 +442,8 @@
 
     <details><summary>6. Botões do topo</summary><div class="body">
       <ul>
-        <li><b>⚙ Credenciais</b>: App ID e Secret da Shopee deste aparelho.</li>
+        <li><b>⚙ Configurações</b>: App ID e Secret da Shopee, chave da IA e alertas diários.</li>
+        <li><b>Instalar app</b>: aparece quando o celular permite instalar o painel como aplicativo.</li>
         <li><b>Limpar cache</b>: o painel guarda buscas por 5 minutos para ficar rápido. Limpe para forçar dados novos.</li>
         <li><b>Sair</b>: apaga a senha do painel deste aparelho.</li>
       </ul>
@@ -383,7 +451,9 @@
 
     <details><summary>7. Mensagens de erro e o que fazer</summary><div class="body">
       <ul>
-        <li><b>Invalid Signature [10020]</b>: o Secret mudou ou foi colado errado. Abra <b>⚙ Credenciais</b> e cole o Secret atual.</li>
+        <li><b>Invalid Signature [10020]</b>: o Secret mudou ou foi colado errado. Abra <b>⚙ Configurações</b> e cole o Secret atual.</li>
+        <li><b>Banco de dados não configurado</b>: Em alta, alertas e lista compartilhada precisam do banco. Veja <b>Manual → 9. Ativar banco de dados</b>.</li>
+        <li><b>Configure a chave da IA</b>: o Roteiro IA precisa da chave. Veja <b>Manual → 11. Roteiro com IA</b>.</li>
         <li><b>System Error [10000]</b>: instabilidade da Shopee. O painel já tenta de novo sozinho; se continuar, espere alguns minutos.</li>
         <li><b>Nenhum resultado</b>: diminua os filtros (vendas mínimas, nota mínima) ou mude a palavra-chave.</li>
         <li><b>Senha do painel inválida</b>: digite a senha de novo (toque em <b>Sair</b> e faça uma busca).</li>
@@ -391,7 +461,49 @@
       </ul>
     </div></details>
 
-    <details><summary>8. Glossário</summary><div class="body">
+    <details><summary>8. Instalar como aplicativo</summary><div class="body">
+      <ol>
+        <li>Abra o painel no <b>Chrome</b> do celular.</li>
+        <li>Toque no botão <b>Instalar app</b> no topo (se aparecer) ou no menu <b>⋮</b> → <b>Adicionar à tela inicial</b> / <b>Instalar app</b>.</li>
+        <li>O ícone laranja com o gráfico aparece na tela inicial e abre em tela cheia.</li>
+      </ol>
+      <p>No iPhone: Safari → botão compartilhar → <b>Adicionar à Tela de Início</b>.</p>
+    </div></details>
+
+    <details><summary>9. Ativar banco de dados (Em alta, alertas e lista em vários aparelhos)</summary><div class="body">
+      <p>É gratuito e leva uns 3 minutos, pelo celular mesmo:</p>
+      <ol>
+        <li>Entre em <b>vercel.com</b> → projeto <b>shopee-afiliados-kr4</b> → aba <b>Storage</b>.</li>
+        <li>Toque em <b>Create Database</b> (ou <b>Browse Marketplace</b>) e escolha <b>Upstash for Redis</b> (aparece também como "Redis" ou "KV"). Plano <b>Free</b>.</li>
+        <li>Na tela de conexão, marque o projeto <b>shopee-afiliados-kr4</b> e confirme. A Vercel cria as variáveis sozinha.</li>
+        <li>Vá em <b>Deployments</b> → no mais recente, <b>⋯</b> → <b>Redeploy</b>.</li>
+        <li>Pronto: a aba <b>Em alta</b> começa a juntar histórico a cada busca e na tarefa diária.</li>
+      </ol>
+      <p>Sem o banco, a lista <b>Para gravar</b> funciona só no aparelho onde foi criada.</p>
+    </div></details>
+
+    <details><summary>10. Alertas diários no celular</summary><div class="body">
+      <p>Todo dia por volta das <b>7h</b> o sistema roda as Oportunidades dos seus nichos e avisa: novos produtos com nota alta, mudança de comissão na lista Para gravar e produtos em alta. Precisa do banco de dados.</p>
+      <p><b>Opção mais simples: app ntfy</b></p>
+      <ol>
+        <li>Instale o app <b>ntfy</b> (Play Store / App Store).</li>
+        <li>No app, toque em <b>+</b> e assine um tópico com um nome só seu, difícil de adivinhar (ex.: <span class="tagline">kr4-afiliados-x7k2p</span>).</li>
+        <li>No painel: <b>⚙ Configurações → Alertas diários</b>, escreva até 3 nichos (um por linha), cole o mesmo nome do tópico e toque em <b>Enviar teste</b>.</li>
+      </ol>
+      <p><b>Ou pelo Telegram:</b> no Telegram, fale com <b>@BotFather</b> → <span class="tagline">/newbot</span> → copie o <b>token</b>. Mande uma mensagem qualquer para o seu bot, depois abra <span class="tagline">https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</span> e copie o número de <b>chat.id</b>. Cole os dois em Configurações.</p>
+      <p>Para que a tarefa diária funcione, o <b>Secret da Shopee também precisa estar atualizado na Vercel</b> (Settings → Environment Variables → <span class="tagline">SHOPEE_SECRET</span>), porque ela roda no servidor, sem o celular.</p>
+    </div></details>
+
+    <details><summary>11. Roteiro com IA</summary><div class="body">
+      <ol>
+        <li>Crie uma conta em <b>console.anthropic.com</b>, adicione créditos (a partir de US$ 5) e gere uma <b>API key</b>.</li>
+        <li>Cole em <b>⚙ Configurações → Roteiro com IA</b> e toque em <b>Salvar</b>.</li>
+        <li>Em <b>Para gravar</b> (ou no detalhe de um produto), toque em <b>Roteiro IA</b>, escolha o tom e a duração e gere.</li>
+      </ol>
+      <p>Cada roteiro custa uma fração de centavo de dólar. O roteiro fica salvo junto do produto na lista.</p>
+    </div></details>
+
+    <details><summary>12. Glossário</summary><div class="body">
       <ul>
         <li><b>Comissão</b>: porcentagem do valor da venda que vai para o afiliado.</li>
         <li><b>AMS / comissão extra do vendedor</b>: comissão adicional paga pela loja, além da da Shopee.</li>
@@ -414,7 +526,8 @@
 <div class="toast" id="toast"></div>
 <div class="shade" id="credShade" onclick="closeCreds()"></div>
 <div class="modal" id="creds" role="dialog" aria-labelledby="credTitle">
-  <h2 id="credTitle">Credenciais da Shopee</h2>
+  <div class="bar" style="margin:0"><h2 id="credTitle" style="flex:1">Configurações</h2><button class="b sm" onclick="closeCreds()">Fechar</button></div>
+  <h3 class="sec">Shopee</h3>
   <p class="meta" style="display:block">Copie do painel de afiliados (affiliate.shopee.com.br → Open API). Ficam salvas só neste aparelho e passam na frente das que estão na Vercel.</p>
   <div class="f"><label for="cApp">App ID</label><input id="cApp" inputmode="numeric" autocomplete="off" placeholder="ex: 18353951040"></div>
   <div class="f"><label for="cSec">Secret</label>
@@ -424,9 +537,25 @@
   <div class="bar" style="margin:0">
     <button class="b p" onclick="saveCreds()">Salvar e testar</button>
     <button class="b" onclick="clearCreds()">Usar as da Vercel</button>
-    <span style="flex:1"></span>
-    <button class="b" onclick="closeCreds()">Fechar</button>
   </div>
+  <h3 class="sec">Roteiro com IA</h3>
+  <p class="meta" style="display:block" id="aiNote"></p>
+  <div class="f"><label for="aiKey">Chave da API da Anthropic</label>
+    <div style="display:flex;gap:6px"><input id="aiKey" type="password" autocomplete="off" spellcheck="false" style="flex:1" placeholder="sk-ant-…"><button class="b sm" onclick="saveAiKey()">Salvar</button></div></div>
+  <h3 class="sec">Alertas diários</h3>
+  <div id="alertBox" style="display:flex;flex-direction:column;gap:10px"></div>
+</div>
+
+<div class="shade" id="scShade" onclick="closeScript()"></div>
+<div class="modal" id="scModal" role="dialog" aria-labelledby="scTitle">
+  <div class="bar" style="margin:0"><h2 id="scTitle" style="flex:1;font-size:15px">Roteiro</h2><button class="b sm" onclick="closeScript()">Fechar</button></div>
+  <div class="bar" style="margin:0">
+    <div class="f"><label for="scTone">Tom</label><select id="scTone"><option>animado</option><option>informativo</option><option>engraçado</option><option>emocional</option><option value="review sincero">review sincero</option><option value="tutorial/demonstração">tutorial</option></select></div>
+    <div class="f"><label for="scDur">Duração</label><select id="scDur"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></div>
+  </div>
+  <div class="f"><label for="scExtra">Observações (opcional)</label><input id="scExtra" placeholder="ex: vou mostrar usando no dia a dia, público plus size"></div>
+  <button class="b p" id="scGo" onclick="genScript()">Gerar roteiro</button>
+  <div id="scOut"></div>
 </div>
 
 <script>
@@ -472,7 +601,8 @@ function credSourceLabel() { return lsGet('shopeeSecret') ? 'Usando as credencia
 function openCreds() {
   $('#cApp').value = lsGet('shopeeAppId'); $('#cSec').value = lsGet('shopeeSecret'); $('#cSec').type = 'password';
   $('#credMsg').className = 'note'; $('#credMsg').textContent = credSourceLabel();
-  $('#creds').classList.add('on'); $('#credShade').classList.add('on'); $('#cSec').focus();
+  $('#creds').classList.add('on'); $('#credShade').classList.add('on');
+  if (typeof loadSettingsUI === 'function') loadSettingsUI();
 }
 function closeCreds() { $('#creds').classList.remove('on'); $('#credShade').classList.remove('on'); }
 async function saveCreds() {
@@ -532,6 +662,8 @@ $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   $$('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
   $$('main section').forEach((s) => s.classList.toggle('on', s.id === b.dataset.t));
+  if (b.dataset.t === 'favs' && typeof renderFavs === 'function') renderFavs();
+  if (b.dataset.t === 'trending' && typeof loadTrending === 'function' && !state.trending) loadTrending();
 });
 
 /* ---------------- status ---------------- */
@@ -609,6 +741,7 @@ function nextPage(tab) {
 function productCards(rows) {
   return '<div class="grid">' + rows.map((n, i) => `
     <div class="card" onclick="openItem('products',${state.products.nodes.indexOf(n)})">
+      ${typeof starBtn === 'function' ? starBtn(n, 'products', state.products.nodes.indexOf(n)) : ''}
       <img loading="lazy" src="${esc(n.imageUrl)}" alt="">
       <div class="c">
         <div class="t">${esc(n.productName)}</div>
@@ -684,6 +817,7 @@ function renderOpps(r, out) {
       <button class="b sm" onclick="download('oportunidades.csv',toCSV(state.opportunities.nodes.map(({parts,why,...x})=>({...x,motivos:why.join(' | ')}))),'text/csv')">CSV</button></div>` +
     (rows.length ? '<div class="grid">' + rows.map((n) => `
     <div class="card" onclick="openItem('opportunities',${state.opportunities.nodes.indexOf(n)})">
+      ${typeof starBtn === 'function' ? starBtn(n, 'opportunities', state.opportunities.nodes.indexOf(n)) : ''}
       <span class="score rank ${scoreCls(n.score)}" title="Nota de oportunidade">${n.score}</span>
       <img loading="lazy" src="${esc(n.imageUrl)}" alt="">
       <div class="c">
@@ -796,8 +930,14 @@ function openObj(o) {
   const title = o.productName || o.shopName || o.offerName || o.itemName || 'Detalhes';
   $('#dTitle').textContent = title;
   const link = o.offerLink || o.productLink || o.originalLink;
+  const isProd = !!(o.itemId && o.productName);
   $('#dBody').innerHTML = `
     ${o.imageUrl ? `<img class="hero" src="${esc(o.imageUrl)}" alt="">` : ''}
+    ${isProd && typeof toggleFav === 'function' ? `<div class="bar">
+      <button class="b sm ${FAV.has(String(o.itemId)) ? '' : 'p'}" onclick="toggleFav(current);openObj(current)">${FAV.has(String(o.itemId)) ? '★ Na lista Para gravar (remover)' : '★ Adicionar em Para gravar'}</button>
+      <button class="b sm" onclick="closeDrawer();openScript(FAV.get(String(current.itemId)) || current)">Roteiro IA</button>
+      ${o.imageUrl ? `<button class="b sm" onclick="downloadPhoto(current.imageUrl, current.productName)">Baixar foto</button>` : ''}
+    </div><div id="histBox"></div>` : ''}
     ${link ? `<div class="bar">
       ${o.offerLink ? `<button class="b sm" onclick="copy('${esc(o.offerLink)}')">Copiar link de afiliado</button>` : ''}
       ${o.productLink || o.originalLink ? `<button class="b sm p" onclick="quickLink('${esc(o.productLink || o.originalLink)}')">Gerar link curto c/ subId</button>` : ''}
@@ -809,6 +949,7 @@ function openObj(o) {
     <div class="kv">${Object.entries(flatten(o)).map(([k, v]) => `<div>${esc(k)}</div><div>${esc(fmtVal(k.split('.').pop(), v))}</div>`).join('')}</div>
     <details><summary class="meta" style="cursor:pointer">JSON bruto</summary><pre>${esc(JSON.stringify(o, null, 2))}</pre></details>`;
   $('#drawer').classList.add('on'); $('.shade').classList.add('on');
+  if (isProd && typeof drawHistory === 'function') drawHistory(o.itemId);
 }
 function closeDrawer() { $('#drawer').classList.remove('on'); $('.shade').classList.remove('on'); }
 function copyJSON() { if (current) copy(JSON.stringify(current, null, 2)); }
@@ -853,5 +994,6 @@ async function introspect() {
       <div style="font-size:12px;font-weight:400;font-family:var(--mono);margin-top:6px">${(t.fields || t.inputFields || []).map((f) => `${esc(f.name)}${f.args?.length ? '(' + f.args.map((a) => esc(a.name)).join(', ') + ')' : ''}: <span style="color:var(--muted)">${esc(tn(f.type))}</span>`).join('<br>')}${(t.enumValues || []).map((e) => esc(e.name)).join('<br>')}</div></div>`).join('') + '</div>';
 }
 </script>
+<script src="/extras.js"></script>
 </body>
 </html>
