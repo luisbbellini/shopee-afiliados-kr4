@@ -86,6 +86,18 @@
   .empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:var(--r)}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--soft);color:var(--muted)}
   a{color:var(--accent)}
+  .intro{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--muted)}
+  .intro b{color:var(--ink);font-weight:600}
+  .manual{max-width:760px;display:flex;flex-direction:column;gap:10px}
+  .manual details{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:0}
+  .manual summary{cursor:pointer;padding:13px 16px;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:10px}
+  .manual summary::-webkit-details-marker{display:none}
+  .manual summary::after{content:'+';color:var(--muted);font-weight:400}
+  .manual details[open] summary::after{content:'–'}
+  .manual .body{padding:0 16px 14px;font-size:14px;line-height:1.6}
+  .manual .body p{margin:0 0 10px} .manual .body ol,.manual .body ul{margin:0 0 10px;padding-left:20px} .manual .body li{margin-bottom:6px}
+  .manual h2{font-size:18px;margin:0 0 4px} .manual .lead{color:var(--muted);margin:0 0 6px;font-size:14px}
+  .manual .tagline{display:inline-block;font-size:12px;padding:1px 7px;border-radius:4px;background:var(--soft);font-family:var(--mono)}
   .score{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:24px;padding:0 7px;border-radius:99px;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
   .score.hi{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
   .score.mid{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
@@ -138,11 +150,13 @@
   <button data-t="validated">Validados</button>
   <button data-t="feeds">Feeds</button>
   <button data-t="console">Console GraphQL</button>
+  <button data-t="manual">Manual</button>
 </nav>
 
 <main>
 <!-- PRODUTOS -->
 <section id="products" class="on">
+  <p class="intro">Busca produtos da Shopee que pagam comissão. Digite o que procura, escolha a ordem e toque em <b>Buscar produtos</b>. Em cada produto: <b>Copiar link</b> (link de afiliado pronto) e <b>Shopee</b> (abre o produto no app). Toque no card para ver todos os detalhes.</p>
   <form class="form" data-api="products">
     <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="ex: fone bluetooth"></div>
     <div class="f"><label>Ordenar</label><select name="sortType">
@@ -167,6 +181,7 @@
 
 <!-- OPORTUNIDADES -->
 <section id="opportunities">
+  <p class="intro">Encontra produtos que <b>vendem bem</b> e que provavelmente têm <b>pouca concorrência</b> de afiliados. Cada produto ganha uma nota de 0 a 100 com os motivos. Use os botões <b>Shopee</b> e <b>TikTok</b> para conferir antes de gravar.</p>
   <form class="form" data-api="opportunities">
     <div class="f grow"><label for="oKw">Palavra-chave</label><input id="oKw" name="keyword" placeholder="ex: fone bluetooth (vazio = geral)"></div>
     <div class="f"><label>ID categoria</label><input name="productCatId" inputmode="numeric" style="width:120px"></div>
@@ -176,12 +191,13 @@
     <div class="f"><label>Comissão mínima (%)</label><input name="minCommission" type="number" value="0" min="0" max="100" style="width:80px"></div>
     <button class="b p">Encontrar oportunidades</button>
   </form>
-  <div class="note">A Shopee não informa quantos afiliados divulgam cada produto. A nota (0–100) é uma <b>estimativa</b>: vende bem, boa avaliação, boa comissão, <b>fora das listas de destaque</b> que todo afiliado vê, oferta nova e comissão extra do vendedor. Confirme no TikTok antes de gravar.</div>
+  <div class="note">A nota é uma <b>estimativa</b>: a Shopee não informa quantos afiliados divulgam cada produto. Veja <b>Manual → Como a nota é calculada</b>.</div>
   <div class="out"></div>
 </section>
 
 <!-- LOJAS -->
 <section id="shops">
+  <p class="intro">Lojas que pagam comissão para afiliados. Útil para achar lojas com <b>comissão maior</b> e depois ver os produtos delas (no card do produto: <b>Mais desta loja</b>).</p>
   <form class="form" data-api="shops">
     <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="nome da loja"></div>
     <div class="f"><label>Ordenar</label><select name="sortType"><option value="2">Maior comissão</option><option value="3">Populares</option><option value="1">Mais recentes</option></select></div>
@@ -199,6 +215,7 @@
 
 <!-- CAMPANHAS -->
 <section id="offers">
+  <p class="intro">Campanhas e ofertas oficiais da Shopee (ex.: datas promocionais, categorias em destaque), com a comissão e o link de cada uma.</p>
   <form class="form" data-api="offers">
     <div class="f grow"><label>Palavra-chave</label><input name="keyword" placeholder="ex: beleza, 12.12"></div>
     <div class="f"><label>Ordenar</label><select name="sortType"><option value="2">Maior comissão</option><option value="1">Mais recentes</option></select></div>
@@ -213,6 +230,7 @@
 
 <!-- LINKS -->
 <section id="links">
+  <p class="intro">Transforma links normais da Shopee em <b>links curtos de afiliado</b>. Os <b>subIds</b> são etiquetas suas (ex.: nome do vídeo e rede social) que voltam no relatório de Conversões, mostrando <b>qual vídeo vendeu</b>.</p>
   <form class="form" id="linkForm">
     <div class="f grow" style="flex-basis:100%"><label>URLs da Shopee (uma por linha, até 50)</label>
       <textarea name="urls" rows="6" placeholder="https://shopee.com.br/produto-i.123.456"></textarea></div>
@@ -229,6 +247,7 @@
 
 <!-- CONVERSÕES -->
 <section id="conversions">
+  <p class="intro">As vendas feitas pelos seus links: pedidos, valores, comissões e status. Mostra também o resumo <b>por subId</b> (qual vídeo vendeu) e <b>por produto</b>. Padrão: últimos 30 dias.</p>
   <form class="form" data-api="conversions">
     <div class="f"><label>Compra de</label><input type="date" name="start"></div>
     <div class="f"><label>Compra até</label><input type="date" name="end"></div>
@@ -248,6 +267,7 @@
 
 <!-- VALIDADOS -->
 <section id="validated">
+  <p class="intro">Comissões já <b>validadas para pagamento</b> pela Shopee. Precisa do <b>Validation ID</b>, que aparece no painel de pagamentos do site de afiliados.</p>
   <form class="form" data-api="validated">
     <div class="f"><label>Validation ID</label><input name="validationId" inputmode="numeric" placeholder="do painel de pagamentos"></div>
     <label class="f chk"><input type="checkbox" name="allPages" checked> Todas as páginas</label>
@@ -259,6 +279,7 @@
 
 <!-- FEEDS -->
 <section id="feeds">
+  <p class="intro">Catálogos completos de produtos que a Shopee disponibiliza para afiliados (uso avançado, para baixar muitos produtos de uma vez em CSV/JSON).</p>
   <form class="form" data-api="feeds">
     <div class="f"><label>Modo</label><select name="feedMode"><option>FULL</option><option>DELTA</option></select></div>
     <button class="b p">Listar feeds</button>
@@ -269,6 +290,7 @@
 
 <!-- CONSOLE -->
 <section id="console">
+  <p class="intro">Área técnica. <b>Diagnóstico</b> testa a conexão com a Shopee quando algo dá erro (mande o print para o suporte). O resto é para consultas avançadas.</p>
   <div class="two">
     <div>
       <h3>Consulta GraphQL</h3>
@@ -286,6 +308,101 @@
     <div><h3>Resposta</h3><pre id="gout">—</pre></div>
   </div>
   <div id="schema" style="margin-top:14px"></div>
+</section>
+
+<!-- MANUAL -->
+<section id="manual">
+  <div class="manual">
+    <div>
+      <h2>Manual de uso</h2>
+      <p class="lead">Como usar o painel no dia a dia, do produto ao link e às vendas. Toque em cada item para abrir.</p>
+    </div>
+
+    <details open><summary>1. Primeiro acesso</summary><div class="body">
+      <ol>
+        <li>Abra o painel. Na primeira busca ele pede a <b>senha do painel</b>. Ela fica salva no aparelho.</li>
+        <li>Toque em <b>⚙ Credenciais</b>, cole o <b>App ID</b> e o <b>Secret</b> do site de afiliados (affiliate.shopee.com.br → Open API) e toque em <b>Salvar e testar</b>. Deve aparecer "✓ Funcionou!".</li>
+        <li>Pronto. Em outro celular ou computador, repita os passos 1 e 2.</li>
+      </ol>
+      <p>Se alguém gerar um <b>Secret novo</b> na Shopee, o antigo para de funcionar: é só colar o novo em <b>⚙ Credenciais</b>.</p>
+    </div></details>
+
+    <details><summary>2. Rotina recomendada: do produto à venda</summary><div class="body">
+      <ol>
+        <li><b>Oportunidades</b>: pesquise um nicho (ex.: "vestido plus size") e veja os produtos com nota mais alta.</li>
+        <li>Toque em <b>Shopee</b> para ver o produto no app (avaliações, vídeos de outros criadores) e em <b>TikTok</b> para ver quantos vídeos já existem.</li>
+        <li>Escolheu? Toque no card e em <b>Gerar link curto c/ subId</b>. Use um nome que identifique o vídeo, por exemplo <span class="tagline">vestido01-tiktok</span>.</li>
+        <li>Grave o vídeo e publique com esse link.</li>
+        <li>Depois de alguns dias, abra <b>Conversões</b> e veja o quadro <b>Por subId</b>: ele mostra quanto cada vídeo vendeu.</li>
+      </ol>
+    </div></details>
+
+    <details><summary>3. O que cada aba faz</summary><div class="body">
+      <ul>
+        <li><b>Produtos</b>: busca livre de produtos com comissão, com filtros e ordenação.</li>
+        <li><b>Oportunidades</b>: ranking de produtos que vendem bem com provável pouca concorrência.</li>
+        <li><b>Lojas</b>: lojas que pagam comissão (ordene por "Maior comissão").</li>
+        <li><b>Campanhas Shopee</b>: campanhas e ofertas oficiais da Shopee.</li>
+        <li><b>Gerar links</b>: cola vários links da Shopee e gera os links curtos de uma vez.</li>
+        <li><b>Conversões</b>: suas vendas e comissões, por vídeo (subId) e por produto.</li>
+        <li><b>Validados</b>: comissões já aprovadas para pagamento.</li>
+        <li><b>Feeds</b>: catálogo completo para baixar (uso avançado).</li>
+        <li><b>Console GraphQL</b>: área técnica e <b>Diagnóstico</b>.</li>
+      </ul>
+    </div></details>
+
+    <details><summary>4. Como a nota de Oportunidades é calculada</summary><div class="body">
+      <p>A Shopee não informa quantos afiliados divulgam um produto, então a nota (0 a 100) junta sinais indiretos:</p>
+      <ul>
+        <li><b>Vendas</b> (até 30 pontos): quanto mais vendido, melhor.</li>
+        <li><b>Avaliação</b> (até 10): nota de 4 a 5 estrelas.</li>
+        <li><b>Comissão</b> (até 25): porcentagem e valor em reais.</li>
+        <li><b>Fora das listas de destaque</b> (até 20): produtos que não aparecem em "Top performance" e "Maior comissão", as listas que todo afiliado vê.</li>
+        <li><b>Oferta nova</b> (até 10): comissão que começou há poucos dias.</li>
+        <li><b>Vendedor paga extra</b> (até 5): a loja paga comissão adicional para atrair afiliados.</li>
+      </ul>
+      <p>Cores: <span class="score hi">70+</span> boa oportunidade · <span class="score mid">50–69</span> vale olhar · <span class="score lo">&lt;50</span> fraca. Toque no produto para ver os pontos de cada item.</p>
+    </div></details>
+
+    <details><summary>5. Usando subIds para saber qual vídeo vendeu</summary><div class="body">
+      <p>O subId é uma etiqueta que vai junto do link. Quando alguém compra, a venda volta com essa etiqueta em <b>Conversões</b>.</p>
+      <ul>
+        <li>Use um padrão fixo: <span class="tagline">produto-numero-rede</span>, ex.: <span class="tagline">vestido01-tiktok</span>, <span class="tagline">vestido01-insta</span>.</li>
+        <li>Um link por vídeo e por rede social.</li>
+        <li>Até 5 subIds por link (ex.: vídeo, rede, campanha).</li>
+      </ul>
+    </div></details>
+
+    <details><summary>6. Botões do topo</summary><div class="body">
+      <ul>
+        <li><b>⚙ Credenciais</b>: App ID e Secret da Shopee deste aparelho.</li>
+        <li><b>Limpar cache</b>: o painel guarda buscas por 5 minutos para ficar rápido. Limpe para forçar dados novos.</li>
+        <li><b>Sair</b>: apaga a senha do painel deste aparelho.</li>
+      </ul>
+    </div></details>
+
+    <details><summary>7. Mensagens de erro e o que fazer</summary><div class="body">
+      <ul>
+        <li><b>Invalid Signature [10020]</b>: o Secret mudou ou foi colado errado. Abra <b>⚙ Credenciais</b> e cole o Secret atual.</li>
+        <li><b>System Error [10000]</b>: instabilidade da Shopee. O painel já tenta de novo sozinho; se continuar, espere alguns minutos.</li>
+        <li><b>Nenhum resultado</b>: diminua os filtros (vendas mínimas, nota mínima) ou mude a palavra-chave.</li>
+        <li><b>Senha do painel inválida</b>: digite a senha de novo (toque em <b>Sair</b> e faça uma busca).</li>
+        <li>Erro que não some: <b>Console GraphQL → Diagnóstico</b> e mande o print para o suporte.</li>
+      </ul>
+    </div></details>
+
+    <details><summary>8. Glossário</summary><div class="body">
+      <ul>
+        <li><b>Comissão</b>: porcentagem do valor da venda que vai para o afiliado.</li>
+        <li><b>AMS / comissão extra do vendedor</b>: comissão adicional paga pela loja, além da da Shopee.</li>
+        <li><b>Vendedores-chave</b>: lojas parceiras destacadas pela Shopee.</li>
+        <li><b>Mall / Star / Star+</b>: tipos de loja (oficial, indicada, indicada premium).</li>
+        <li><b>Link de afiliado</b>: link rastreado que gera comissão quando alguém compra.</li>
+        <li><b>subId</b>: etiqueta sua no link para identificar o vídeo ou a rede.</li>
+        <li><b>Conversão</b>: uma compra feita a partir do seu link.</li>
+      </ul>
+    </div></details>
+  </div>
 </section>
 </main>
 
