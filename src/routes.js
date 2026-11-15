@@ -47,6 +47,32 @@ const routes = {
   'POST /api/graphql': (b) => client.raw(b.query, b.variables),
   'POST /api/introspect': () => client.introspect(),
   'POST /api/diagnose': (b) => client.diagnose(b.keyword || 'garrafa'),
+  // TEMPORÁRIO: testa a assinatura em variações e devolve só códigos de erro (sem dados da conta)
+  'GET /api/selftest': async () => {
+    const crypto2 = await import('node:crypto');
+    const results = [];
+    const call = async (name, query, sigFn) => {
+      const body = JSON.stringify({ query });
+      const ts = Math.floor(Date.now() / 1000);
+      const sig = sigFn(body, ts);
+      const res = await fetch(client.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json',
+        Authorization: `SHA256 Credential=${client.appId}, Timestamp=${ts}, Signature=${sig}` }, body });
+      const txt = await res.text(); let j = {}; try { j = JSON.parse(txt); } catch {}
+      results.push({ name, http: res.status, shopeeDate: res.headers.get('date'), ourTs: ts,
+        error: j.errors ? j.errors.map((e) => `${e.message} ${e.extensions?.code ?? ''}`).join(' | ') : null,
+        ok: !j.errors && !!j.data });
+    };
+    const h = (str) => crypto2.createHash('sha256').update(str).digest('hex');
+    const A = client.appId, S = client.secret;
+    const q1 = '{ productOfferV2(keyword: "garrafa", limit: 1) { nodes { itemId } } }';
+    const q2 = '{ productOfferV2(limit: 1) { nodes { itemId } } }';
+    await call('padrão, com palavra-chave', q1, (b, t) => h(A + t + b + S));
+    await call('padrão, sem palavra-chave', q2, (b, t) => h(A + t + b + S));
+    await call('hash em MAIÚSCULAS', q1, (b, t) => h(A + t + b + S).toUpperCase());
+    await call('secret em minúsculas', q1, (b, t) => h(A + t + b + S.toLowerCase()));
+    await call('assinatura errada de propósito', q1, () => 'x'.repeat(64));
+    return { results, serverNow: new Date().toISOString() };
+  },
   'POST /api/cache/clear': async () => { cache.clear(); return { ok: true }; },
 };
 
@@ -79,7 +105,7 @@ export async function handle(method, pathname, body = {}, headers = {}) {
   const key = `${method} ${pathname}`;
   const fn = routes[key];
   if (!fn) return { status: 404, body: { errors: [{ message: 'Rota não encontrada: ' + key }] } };
-  if (PANEL_KEY && key !== 'GET /api/status') {
+  if (PANEL_KEY && key !== 'GET /api/status' && key !== 'GET /api/selftest') {
     const got = String(headers['x-panel-key'] || '');
     const ok = got.length === PANEL_KEY.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(PANEL_KEY));
     if (!ok) return { status: 401, body: { errors: [{ message: 'Senha do painel inválida' }], needKey: true } };
