@@ -70,7 +70,8 @@ export const CORE = {
 };
 
 // O que a API já rejeitou nesta instância (campos e argumentos), para não repetir o erro.
-export const learned = { badFields: {}, badArgs: {}, maxLimit: {} };
+export const learned = {};
+export function clearLearned() { for (const k of Object.keys(learned)) delete learned[k]; }
 
 // Divide uma seleção GraphQL nos itens do primeiro nível: "a b c { d } e" -> ["a","b","c { d }","e"]
 export function topLevel(sel) {
@@ -213,66 +214,82 @@ export class ShopeeAffiliate {
     return { errors: [{ message: 'Campos demais rejeitados pela API' }], stripped, query: q };
   }
 
-  /* ---------- consulta resiliente: se der "System Error", descobre o culpado ---------- */
+  /* ---------- consulta resiliente: se der "System Error", tenta contornar ---------- */
+  // Regras: a palavra-chave nunca é descartada sozinha; nada de filtro é ignorado em
+  // silêncio (sempre vem aviso); só campos de exibição são lembrados, e por 10 minutos.
   async smartQuery(root, argObj, pageInfo = '') {
-    const badF = (learned.badFields[root] ||= new Set());
-    const badA = (learned.badArgs[root] ||= new Set());
-    const clean = (a) => Object.fromEntries(Object.entries(a).filter(([k, v]) => !badA.has(k) && v !== undefined && v !== null && v !== ''));
-    let a = clean(argObj);
-    if (learned.maxLimit[root] && a.limit > learned.maxLimit[root]) a.limit = learned.maxLimit[root];
-    const full = topLevel(FIELDS[root]).filter((f) => !badF.has(fieldName(f)));
+    const st = (learned[root] ||= { badFields: new Set(), at: 0 });
+    if (Date.now() - st.at > 10 * 60 * 1000) st.badFields = new Set();
+    const a = Object.fromEntries(Object.entries(argObj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
     const build = (fields, args, pi = pageInfo) => `{ ${root}${gqlArgs(args)} { nodes { ${fields.join(' ')} } ${pi} } }`;
+    const fieldsNow = () => topLevel(FIELDS[root]).filter((f) => !st.badFields.has(fieldName(f)));
     const notes = [];
+    const done = (r) => {
+      if (st.badFields.size) notes.push('Campos que a Shopee não devolve para esta conta: ' + [...st.badFields].join(', '));
+      return notes.length ? { ...r, diagnostic: notes } : r;
+    };
+    const okQ = (r) => !r.errors?.length;
+    // Só considera falha se repetir (evita falso positivo por instabilidade).
+    const fails = async (fields, args) => {
+      for (let i = 0; i < 2; i++) { if (okQ(await this.query(build(fields, args)))) return false; await sleep(250); }
+      return true;
+    };
 
-    let r = await this.query(build(full, a));
-    if (!isSystemError(r)) return r;
+    let r = await this.query(build(fieldsNow(), a));
+    if (!isSystemError(r)) return done(r);
+    await sleep(400); // instabilidade momentânea? tenta igual mais uma vez
+    r = await this.query(build(fieldsNow(), a));
+    if (!isSystemError(r)) return done(r);
     const original = r;
 
-    // 1) limite menor
+    // Lista por categoria/loja exige o ID correspondente.
+    if ([3, 4, 5].includes(a.listType) && !a.matchId) {
+      return { ...original, diagnostic: [a.listType === 5 ? 'Para a lista "Loja", preencha o ID da loja.' : 'Para listas de categoria, preencha o ID da categoria.'] };
+    }
+
+    // 1) limite por página
     if ((a.limit ?? 0) > 20) {
-      const r2 = await this.query(build(full, { ...a, limit: 20 }));
-      if (!r2.errors?.length) { learned.maxLimit[root] = 20; return { ...r2, diagnostic: [`A Shopee recusou limit=${a.limit}; usei 20 por página.`] }; }
+      const r2 = await this.query(build(fieldsNow(), { ...a, limit: 20 }));
+      if (okQ(r2)) { notes.push(`A Shopee recusou ${a.limit} por página; mostrei 20.`); return done(r2); }
     }
-    // 2) só os campos essenciais
+    // Busca final: tenta o limite pedido; se a Shopee recusar, usa 20.
+    const final = async (args) => {
+      const r1 = await this.query(build(fieldsNow(), args));
+      if (okQ(r1) || (args.limit ?? 0) <= 20) return r1;
+      const r2 = await this.query(build(fieldsNow(), { ...args, limit: 20 }));
+      if (okQ(r2)) notes.push(`Mostrei 20 por página (a Shopee recusou ${args.limit}).`);
+      return r2;
+    };
     const core = topLevel(CORE[root] || FIELDS[root]);
-    const coreNames = new Set(core.map(fieldName));
-    const rCore = await this.query(build(core, { ...a, limit: 1 }));
-    if (!rCore.errors?.length) {
-      // algum campo extra é o culpado: testa um por um
-      for (const f of full.filter((f) => !coreNames.has(fieldName(f)))) {
-        const t = await this.query(build([...core, f], { ...a, limit: 1 }));
-        if (t.errors?.length) badF.add(fieldName(f));
-        await sleep(150);
+    const coreNames = core.map(fieldName);
+
+    // 2) algum campo de exibição?
+    if (!(await fails(core, { ...a, limit: 1 }))) {
+      for (const f of fieldsNow().filter((f) => !coreNames.includes(fieldName(f)))) {
+        if (await fails([...core, f], { ...a, limit: 1 })) st.badFields.add(fieldName(f));
       }
-      if (badF.size) notes.push('Campos que causam erro na Shopee e foram removidos: ' + [...badF].join(', '));
-    } else {
-      // 3) os argumentos: testa a consulta mínima e vai acrescentando um por um
-      const base = { limit: 1 };
-      if (a.keyword) base.keyword = a.keyword;
-      let rBase = await this.query(build(core, base));
-      if (rBase.errors?.length && base.keyword) { delete base.keyword; rBase = await this.query(build(core, base)); }
-      if (rBase.errors?.length) {
-        // sem pageInfo?
-        const rNoPI = await this.query(build(core, base, ''));
-        if (!rNoPI.errors?.length) { notes.push('A Shopee recusou o bloco pageInfo; consultando sem paginação.'); pageInfo = ''; }
-        else return { ...original, diagnostic: ['Até a consulta mínima falhou: o problema é na conta/credencial ou fora do ar na Shopee.', 'Erro: ' + (rNoPI.errors?.[0]?.message || '')] };
-      }
-      for (const k of Object.keys(a).filter((k) => !(k in base) && k !== 'limit')) {
-        const t = await this.query(build(core, { ...base, [k]: a[k] }, pageInfo));
-        if (t.errors?.length) badA.add(k);
-        await sleep(150);
-      }
-      if (badA.size) notes.push('Filtros que a Shopee recusou e foram ignorados: ' + [...badA].join(', '));
+      st.at = Date.now();
+      return done(await final(a));
     }
-    a = clean(argObj);
-    if (learned.maxLimit[root] && a.limit > learned.maxLimit[root]) a.limit = learned.maxLimit[root];
-    const fields = topLevel(FIELDS[root]).filter((f) => !badF.has(fieldName(f)));
-    let rFinal = await this.query(build(fields, a, pageInfo));
-    if (isSystemError(rFinal) && (a.limit ?? 0) > 20) {
-      rFinal = await this.query(build(fields, { ...a, limit: 20 }, pageInfo));
-      if (!rFinal.errors?.length) { learned.maxLimit[root] = 20; notes.push('Limite por página reduzido para 20.'); }
+
+    // 3) combinação de filtros: lista + palavra-chave
+    if (a.listType !== undefined && a.keyword) {
+      const { keyword, ...semPalavra } = a;
+      if (!(await fails(core, { ...semPalavra, limit: 1 }))) {
+        notes.push('A Shopee não aceita palavra-chave junto com essa lista. Mostrei a lista completa; use "Filtrar resultados" para refinar.');
+        return done(await final(semPalavra));
+      }
     }
-    return { ...rFinal, diagnostic: notes.length ? notes : ['Não consegui isolar a causa do erro.'] };
+    // 4) algum outro filtro (nunca a palavra-chave): tenta tirar um de cada vez
+    const LABEL = { sortType: 'Ordenar', listType: 'Lista', isAMSOffer: 'Só AMS', isKeySeller: 'Só vendedores-chave', productCatId: 'ID categoria', shopId: 'ID da loja', itemId: 'ID do item', matchId: 'ID da lista', shopType: 'Tipo de loja' };
+    for (const k of Object.keys(a).filter((k) => LABEL[k])) {
+      const { [k]: _, ...sem } = a;
+      if (!(await fails(core, { ...sem, limit: 1 }))) {
+        notes.push(`A Shopee recusou o filtro "${LABEL[k]}" nesta combinação; busquei sem ele.`);
+        return done(await final(sem));
+      }
+    }
+    return { ...original, diagnostic: ['A Shopee recusou a busca e não encontrei um filtro culpado. Tente de novo em alguns segundos ou mude os filtros.'] };
   }
 
   // Bateria de testes para descobrir o que a conta aceita.
@@ -296,7 +313,7 @@ export class ShopeeAffiliate {
     await run('Campanhas (shopeeOfferV2)', `{ shopeeOfferV2(limit: 1) { nodes { offerName } } }`);
     const now = Math.floor(Date.now() / 1000);
     await run('Conversões 7 dias', `{ conversionReport(purchaseTimeStart: ${now - 7 * 86400}, purchaseTimeEnd: ${now}, limit: 1) { nodes { conversionId } } }`);
-    return { tests, learned: { badFields: mapSets(learned.badFields), badArgs: mapSets(learned.badArgs), maxLimit: learned.maxLimit } };
+    return { tests, learned: Object.fromEntries(Object.entries(learned).map(([k, v]) => [k, [...v.badFields]])) };
   }
 
   /* ------------------------- consultas prontas ------------------------- */
@@ -305,6 +322,12 @@ export class ShopeeAffiliate {
   // listType: 0 todos | 1 maior comissão | 2 mais vendidos | 3 categoria (landing) | 4 categoria | 5 loja
   // sortType: 1 relevância | 2 mais vendidos | 3 maior preço | 4 menor preço | 5 maior comissão
   productOffers(a = {}) {
+    // Listas 3/4 (categoria) e 5 (loja) usam matchId; aproveita os campos do formulário.
+    const lt = num(a.listType);
+    let matchId = num(a.matchId);
+    if (!matchId && (lt === 3 || lt === 4)) { matchId = num(a.productCatId); a = { ...a, productCatId: undefined }; }
+    if (!matchId && lt === 5) { matchId = num(a.shopId); a = { ...a, shopId: undefined }; }
+    a = { ...a, matchId };
     return this.smartQuery('productOfferV2', {
       keyword: a.keyword, shopId: num(a.shopId), itemId: num(a.itemId), productCatId: num(a.productCatId),
       listType: num(a.listType), matchId: num(a.matchId), sortType: num(a.sortType),

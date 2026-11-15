@@ -1,6 +1,6 @@
 // Lógica compartilhada entre o servidor local (server.js) e a função da Vercel (api/index.js)
 import crypto from 'node:crypto';
-import { ShopeeAffiliate } from './shopee.js';
+import { ShopeeAffiliate, clearLearned } from './shopee.js';
 import { mockResponse } from './mock.js';
 
 const MOCK = process.env.SHOPEE_MOCK === '1';
@@ -72,7 +72,7 @@ const routes = {
   'POST /api/graphql': (b, { client }) => client.raw(b.query, b.variables),
   'POST /api/introspect': (b, { client }) => client.introspect(),
   'POST /api/diagnose': (b, { client }) => client.diagnose(b.keyword || 'garrafa'),
-  'POST /api/cache/clear': async () => { cache.clear(); return { ok: true }; },
+  'POST /api/cache/clear': async () => { cache.clear(); clearLearned(); return { ok: true }; },
 };
 
 function paged(method, b = {}, { client, key }) {
