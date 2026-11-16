@@ -311,19 +311,21 @@ async function openPhotos(item) {
   if (!item) return;
   if ($('#imgModal').classList.contains('on')) closeImgEdit();
   phItem = item; $('#phTitle').textContent = 'Fotos e cores · ' + (item.productName || '').slice(0, 40);
-  $('#phOut').innerHTML = '<div class="meta">Buscando as fotos do produto…</div>'; $('#phActs').innerHTML = ''; $('#phInfo').textContent = '';
+  $('#phOut').innerHTML = '<div class="note">Buscando as fotos e cores na Shopee… pode levar alguns segundos.</div>'; $('#phActs').innerHTML = ''; $('#phInfo').textContent = '';
   $('#phModal').classList.add('on'); $('#phShade').classList.add('on');
   const key = String(item.itemId || item.productLink || '');
   let r = PH_CACHE.get(key);
   if (!r) {
-    r = await api('product-photos', { itemId: item.itemId, shopId: item.shopId, productLink: item.productLink, offerLink: item.offerLink, imageUrl: item.imageUrl });
-    if (r.errors) { $('#phOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
+    try { r = await api('product-photos', { itemId: item.itemId, shopId: item.shopId, productLink: item.productLink, offerLink: item.offerLink, imageUrl: item.imageUrl }); }
+    catch { r = { errors: [{ message: 'A busca demorou demais ou falhou. Tente de novo; se continuar, salve as fotos pelo app da Shopee e use "Usar foto do celular" na edição.' }] }; }
+    if (phItem !== item) return;
+    if (r.errors) { $('#phOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>${item.imageUrl ? `<button class="b sm" onclick="downloadPhoto('${esc(item.imageUrl)}','${esc(item.productName || 'produto')}')">Baixar a foto principal</button>` : ''}`; return; }
     if (!r.blocked) PH_CACHE.set(key, r);
   }
   phList = r.photos || [];
   const cores = phList.filter((p) => p.group === 'cor'), fotos = phList.filter((p) => p.group !== 'cor');
   const tiers = (r.tiers || []).map((t) => `<b>${esc(t.name || 'Opções')}:</b> ${esc(t.options.join(', '))}`).join(' · ');
-  $('#phInfo').innerHTML = (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
+  $('#phInfo').innerHTML = (r.blocked && r.errors?.length ? `<div class="meta">Resposta da Shopee: ${esc(r.errors.join(' | '))}</div>` : '') + (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
     `${cores.length ? `${cores.length} cor(es) com foto` : 'Nenhuma cor com foto própria'} · ${fotos.length} foto(s) do anúncio${tiers ? `<br>${tiers}` : ''}`;
   if (phList.length) $('#phActs').innerHTML = `<button class="b sm p" id="phAll" onclick="photosDownloadAll()">Baixar todas (${phList.length})</button><button class="b sm" onclick="photosDownloadEach()">Baixar uma por uma</button>`;
   const grid = (title, arr) => arr.length ? `<h3 class="gridtitle">${title}</h3><div class="imggrid">${arr.map((p) => {

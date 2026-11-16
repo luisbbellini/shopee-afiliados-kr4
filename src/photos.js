@@ -42,7 +42,7 @@ const HEADERS = {
 };
 
 async function tryJson(url, referer) {
-  const r = await fetch(url, { headers: { ...HEADERS, referer }, signal: AbortSignal.timeout(8000) });
+  const r = await fetch(url, { headers: { ...HEADERS, referer }, signal: AbortSignal.timeout(7000) });
   const text = await r.text();
   let j; try { j = JSON.parse(text); } catch { throw new Error('HTTP ' + r.status); }
   if (!r.ok || (j.error && j.error !== 0)) throw new Error(`HTTP ${r.status}${j.error ? ' erro ' + j.error : ''}`);
@@ -67,16 +67,18 @@ export async function productPhotos(body = {}, { mock = false } = {}) {
     `https://shopee.com.br/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`,
     `https://shopee.com.br/api/v2/item/get?itemid=${itemId}&shopid=${shopId}`,
   ];
+  // as três tentativas em paralelo: responde em poucos segundos mesmo se a Shopee bloquear
   const errors = [];
-  for (const url of tries) {
-    try {
-      const r = extractPhotos(await tryJson(url, referer));
-      if (r.photos.length) {
-        if (main.length && !r.photos.some((p) => p.url === main[0].url)) r.photos.push(main[0]);
-        return { ...r, source: 'shopee' };
-      }
-      errors.push('sem fotos na resposta');
-    } catch (e) { errors.push(e.message); }
+  const results = await Promise.allSettled(tries.map(async (url) => {
+    const r = extractPhotos(await tryJson(url, referer));
+    if (!r.photos.length) throw new Error('sem fotos na resposta');
+    return r;
+  }));
+  const best = results.filter((x) => x.status === 'fulfilled').map((x) => x.value).sort((a, b) => b.photos.length - a.photos.length)[0];
+  results.forEach((x) => x.status === 'rejected' && errors.push(x.reason?.message || String(x.reason)));
+  if (best) {
+    if (main.length && !best.photos.some((p) => p.url === main[0].url)) best.photos.push(main[0]);
+    return { ...best, source: 'shopee' };
   }
   return {
     photos: main, colors: [], tiers: [], blocked: true, errors,
