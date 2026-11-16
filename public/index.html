@@ -126,6 +126,14 @@
   .cenas{padding-left:20px;margin:4px 0} .cenas li{margin-bottom:10px}
   .cenas .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600}
   [hidden]{display:none !important}
+  .ed{width:100%;font:inherit;font-size:14.5px;line-height:1.45;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px;resize:none;overflow:hidden;margin:2px 0 8px;display:block}
+  .ed:focus{outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);border-color:var(--accent)}
+  .ed.tempo{width:90px;margin:0;font-weight:600}
+  .scb > .ed[data-path=gancho]{font-size:16px;font-weight:600}
+  .ed-cenas li{margin-bottom:14px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+  .scene-top{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .alts{padding-left:18px;margin:4px 0} .alts li{margin-bottom:6px}
+  .linklike{font:inherit;background:none;border:0;padding:0;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
   #imgModal{width:min(620px,calc(100% - 24px))} #imgShade{z-index:24}
   .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
   .presets h3{margin:4px 0 6px;font-size:12px}
@@ -534,6 +542,7 @@
             <li><b>Só texto na tela</b>: sem fala, só frases escritas e música de fundo.</li>
           </ul></li>
         <li>Escolha o tom e a duração e gere. Cada cena vem com a fala, o texto que aparece na tela e o que filmar.</li>
+        <li><b>Tudo é editável</b>: toque em qualquer parte e escreva. Dá para <b>adicionar</b>, <b>apagar</b> e <b>mudar a ordem</b> das cenas, e tocar num dos "outros ganchos" para trocar o gancho. Se o produto está na lista Para gravar, as edições <b>salvam sozinhas</b>.</li>
       </ol>
       <p>Cada roteiro custa uma fração de centavo de dólar. O roteiro fica salvo junto do produto na lista e mostra qual IA o gerou.</p>
     </div></details>

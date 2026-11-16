@@ -171,34 +171,85 @@ function openScript(idOrObj) {
   if (!scriptItem) return;
   $('#scTitle').textContent = scriptItem.productName || 'Roteiro';
   $('#scFormat').value = lsGet('scFormat') || 'narracao'; $('#scUsedRow').hidden = $('#scFormat').value !== 'primeira_pessoa';
-  $('#scOut').innerHTML = scriptItem.script ? renderScript(scriptItem.script) : '';
+  window._lastScript = null; $('#scGo').textContent = scriptItem.script ? 'Gerar outro roteiro' : 'Gerar roteiro';
+  $('#scOut').innerHTML = scriptItem.script ? renderScript(structuredClone(scriptItem.script)) : '';
   $('#scModal').classList.add('on'); $('#scShade').classList.add('on');
+  $$('#scOut textarea.ed').forEach(scAutoGrow);
 }
 function closeScript() { $('#scModal').classList.remove('on'); $('#scShade').classList.remove('on'); }
 function scriptText(s) {
-  if (s.texto) return s.texto;
+  if (s.texto && !s.cenas) return s.texto;
   return [`${FORMAT_LABEL[s._formato] ? 'TIPO: ' + FORMAT_LABEL[s._formato] + '\n' : ''}GANCHO: ${s.gancho || ''}`, '', ...(s.cenas || []).map((c) => `[${c.tempo}]${c.fala ? ' ' + c.fala : ''}${c.texto_tela ? `  [tela: ${c.texto_tela}]` : ''}${c.imagem ? `  (${c.imagem})` : ''}`), '', `CTA: ${s.cta || ''}`, s.musica ? `MÚSICA: ${s.musica}` : '', '', `LEGENDA: ${s.legenda || ''}`, (s.hashtags || []).join(' ')].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 }
+// Roteiro editável: cada parte é um campo de texto; as mudanças ficam salvas no produto da lista.
 function renderScript(s) {
-  if (s.texto) return `<pre>${esc(s.texto)}</pre>`;
+  if (s.texto && !s.cenas) s = { gancho: '', cenas: [{ tempo: '', fala: s.texto, texto_tela: '', imagem: '' }], cta: '', legenda: '', hashtags: [], _formato: s._formato, _ia: s._ia };
+  s.cenas ||= []; s.hashtags ||= [];
   window._lastScript = s;
-  return `<div class="bar"><button class="b sm p" onclick="copy(scriptText(window._lastScript))">Copiar roteiro inteiro</button>${s._ia ? `<span class="meta">Gerado por ${esc(s._ia)}</span>` : ''}</div>
-    <div class="scb"><h3>Gancho (3 primeiros segundos)</h3><p class="big">${esc(s.gancho)}</p><button class="b sm" onclick="copy(window._lastScript.gancho)">Copiar</button></div>
-    <div class="scb"><h3>Cenas · ${esc(FORMAT_LABEL[s._formato] || 'roteiro')}</h3><ol class="cenas">${(s.cenas || []).map((c) => `<li><b>${esc(c.tempo)}</b>${c.fala ? ` <span class="lbl">${s._formato === 'primeira_pessoa' ? 'Fala' : 'Narração'}:</span> ${esc(c.fala)}` : ''}${c.texto_tela ? `<div><span class="lbl">Texto na tela:</span> ${esc(c.texto_tela)}</div>` : ''}${c.imagem ? `<div class="meta">${s._formato === 'primeira_pessoa' ? 'O que fazer' : 'Mostrar'}: ${esc(c.imagem)}</div>` : ''}</li>`).join('')}</ol></div>
-    ${s.musica ? `<div class="scb"><h3>Música de fundo</h3><p>${esc(s.musica)}</p></div>` : ''}
-    <div class="scb"><h3>Chamada para comprar</h3><p>${esc(s.cta)}</p></div>
-    <div class="scb"><h3>Legenda</h3><p>${esc(s.legenda)}</p><p class="meta">${esc((s.hashtags || []).join(' '))}</p><button class="b sm" onclick="copy(window._lastScript.legenda + '\\n\\n' + (window._lastScript.hashtags||[]).join(' '))">Copiar legenda + hashtags</button></div>
-    ${(s.ideias_extra || []).length ? `<div class="scb"><h3>Outros ganchos</h3><ul>${s.ideias_extra.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>` : ''}`;
+  const fmt = s._formato;
+  const falaLbl = fmt === 'primeira_pessoa' ? 'Fala' : fmt === 'texto' ? 'Fala (opcional)' : 'Narração';
+  const fazerLbl = fmt === 'primeira_pessoa' ? 'O que fazer' : 'O que mostrar';
+  const ta = (path, val, rows = 2, ph = '') => `<textarea class="ed" rows="${rows}" data-path="${path}" placeholder="${esc(ph)}" oninput="scEdit(this)">${esc(val ?? '')}</textarea>`;
+  const inFav = FAV.has(String(scriptItem?.itemId));
+  return `<div class="bar"><button class="b sm p" onclick="copy(scriptText(window._lastScript))">Copiar roteiro inteiro</button>
+      <span class="meta" id="scSaved">${inFav ? 'Edite à vontade: salva sozinho na lista' : 'Edite à vontade'}</span>
+      ${inFav ? '' : `<button class="b sm" onclick="scSaveToList()">★ Salvar na lista Para gravar</button>`}</div>
+    ${s._ia ? `<p class="meta" style="display:block;margin:0">Gerado por ${esc(s._ia)}${s._editado ? ' · editado por você' : ''}</p>` : ''}
+    <div class="scb"><h3>Gancho (3 primeiros segundos)</h3>${ta('gancho', s.gancho, 2, 'Frase que prende a atenção')}<button class="b sm" onclick="copy(window._lastScript.gancho)">Copiar</button></div>
+    <div class="scb"><h3>Cenas · ${esc(FORMAT_LABEL[fmt] || 'roteiro')}</h3>
+      <ol class="cenas ed-cenas">${s.cenas.map((c, i) => `<li>
+        <div class="scene-top"><input class="ed tempo" data-path="cenas.${i}.tempo" value="${esc(c.tempo || '')}" placeholder="0-3s" aria-label="Tempo da cena ${i + 1}" oninput="scEdit(this)">
+          <span class="spacer" style="flex:1"></span>
+          ${i > 0 ? `<button class="b sm" title="Subir" aria-label="Subir cena" onclick="scMove(${i},-1)">↑</button>` : ''}
+          ${i < s.cenas.length - 1 ? `<button class="b sm" title="Descer" aria-label="Descer cena" onclick="scMove(${i},1)">↓</button>` : ''}
+          <button class="b sm" aria-label="Apagar cena" onclick="scDelScene(${i})">Apagar</button></div>
+        <span class="lbl">${falaLbl}</span>${ta(`cenas.${i}.fala`, c.fala, 2)}
+        <span class="lbl">Texto na tela</span>${ta(`cenas.${i}.texto_tela`, c.texto_tela, 1)}
+        <span class="lbl">${fazerLbl}</span>${ta(`cenas.${i}.imagem`, c.imagem, 1)}
+      </li>`).join('')}</ol>
+      <button class="b sm" onclick="scAddScene()">+ Adicionar cena</button></div>
+    <div class="scb"><h3>Música de fundo</h3>${ta('musica', s.musica, 1, 'ex: pop animado')}</div>
+    <div class="scb"><h3>Chamada para comprar</h3>${ta('cta', s.cta, 2)}</div>
+    <div class="scb"><h3>Legenda</h3>${ta('legenda', s.legenda, 3)}
+      <span class="lbl">Hashtags</span>${ta('hashtags', (s.hashtags || []).join(' '), 2, '#exemplo #outra')}
+      <button class="b sm" onclick="copy(window._lastScript.legenda + '\\n\\n' + (window._lastScript.hashtags||[]).join(' '))">Copiar legenda + hashtags</button></div>
+    ${(s.ideias_extra || []).length ? `<div class="scb"><h3>Outros ganchos (toque para usar)</h3><ul class="alts">${s.ideias_extra.map((g, i) => `<li><button class="linklike" onclick="scUseHook(${i})">${esc(g)}</button></li>`).join('')}</ul></div>` : ''}`;
 }
+function scAutoGrow(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
+function scEdit(el) {
+  const s = window._lastScript; const path = el.dataset.path.split('.');
+  if (path[0] === 'hashtags') s.hashtags = el.value.split(/\s+/).filter(Boolean).map((h) => (h.startsWith('#') ? h : '#' + h));
+  else { let o = s; for (let i = 0; i < path.length - 1; i++) o = o[path[i]]; o[path.at(-1)] = el.value; }
+  s._editado = true;
+  if (el.tagName === 'TEXTAREA') scAutoGrow(el);
+  scScheduleSave();
+}
+let scTimer = null;
+function scScheduleSave() {
+  if (!FAV.has(String(scriptItem?.itemId))) return;
+  const lbl = $('#scSaved'); if (lbl) lbl.textContent = 'Salvando…';
+  clearTimeout(scTimer);
+  scTimer = setTimeout(async () => {
+    await favUpsert({ itemId: scriptItem.itemId, script: window._lastScript }, true);
+    const l = $('#scSaved'); if (l) l.textContent = '✓ Salvo na lista';
+  }, 800);
+}
+function scRerender() { $('#scOut').innerHTML = renderScript(window._lastScript); $$('#scOut textarea.ed').forEach(scAutoGrow); }
+function scAddScene() { window._lastScript.cenas.push({ tempo: '', fala: '', texto_tela: '', imagem: '' }); window._lastScript._editado = true; scRerender(); scScheduleSave(); $$('#scOut .ed-cenas li').at(-1)?.querySelector('textarea')?.focus(); }
+function scDelScene(i) { if (!confirm('Apagar esta cena?')) return; window._lastScript.cenas.splice(i, 1); window._lastScript._editado = true; scRerender(); scScheduleSave(); }
+function scMove(i, d) { const c = window._lastScript.cenas; [c[i], c[i + d]] = [c[i + d], c[i]]; window._lastScript._editado = true; scRerender(); scScheduleSave(); }
+function scUseHook(i) { const s = window._lastScript; const old = s.gancho; s.gancho = s.ideias_extra[i]; s.ideias_extra[i] = old; s._editado = true; scRerender(); scScheduleSave(); toast('Gancho trocado'); }
+async function scSaveToList() { await favUpsert({ ...pickFav(scriptItem), script: window._lastScript }); scRerender(); toast('★ Salvo em Para gravar com o roteiro'); }
 async function genScript() {
+  if (window._lastScript?._editado && $('#scOut').innerHTML && !confirm('Gerar um roteiro novo substitui o atual, incluindo suas edições. Continuar?')) return;
   const btn = $('#scGo'); btn.disabled = true; btn.textContent = 'Escrevendo roteiro…';
   $('#scOut').innerHTML = '<div class="note">A IA está escrevendo (10 a 20 segundos)…</div>';
   lsSet('scFormat', $('#scFormat').value);
   const r = await api('script', { product: scriptItem, tone: $('#scTone').value, duration: +$('#scDur').value, extra: $('#scExtra').value, format: $('#scFormat').value, used: $('#scUsed').checked });
-  btn.disabled = false; btn.textContent = 'Gerar roteiro';
+  btn.disabled = false; btn.textContent = r.errors ? 'Gerar roteiro' : 'Gerar outro roteiro';
   if (r.errors) { $('#scOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
-  $('#scOut').innerHTML = renderScript(r.script);
-  if (FAV.has(String(scriptItem.itemId))) { await favUpsert({ itemId: scriptItem.itemId, script: r.script }); toast('Roteiro salvo na lista'); }
+  $('#scOut').innerHTML = renderScript(r.script); $$('#scOut textarea.ed').forEach(scAutoGrow);
+  if (FAV.has(String(scriptItem.itemId))) { await favUpsert({ itemId: scriptItem.itemId, script: r.script }, true); toast('Roteiro salvo na lista'); }
 }
 
 /* ---------------- editar foto com IA ---------------- */
