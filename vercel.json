@@ -2,6 +2,10 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/api/instagram",
+      "destination": "/api/instagram"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api?route=:path*"
     }

@@ -99,3 +99,27 @@ Sem `PANEL_KEY` o painel fica aberto para qualquer um com o link — não publiq
 - **App instalável** (PWA): `manifest.webmanifest`, `sw.js`, ícones.
 
 Banco: conectar "Upstash for Redis" no Storage da Vercel (cria `KV_REST_API_URL`/`KV_REST_API_TOKEN`). Opcional: `CRON_SECRET`.
+
+---
+
+## Atendente do Instagram (`/api/instagram`)
+
+Quem comentar **"quero"**, **"link"**, **"manda link"**, **"eu já quero"** e variações recebe o link do post no direct automaticamente (e uma resposta pública "Te mandei no direct! 📩"). Quem pedir pelo direct recebe o link do último post.
+
+**URL do webhook:** `https://shopee-afiliados-kr4.vercel.app/api/instagram`
+
+Como o link é escolhido: 1) `src/instagram/links.js` (link fixo por código do post), 2) link na legenda (prefere Shopee), 3) link do próprio post.
+
+### Configurar
+1. developers.facebook.com → Criar app (Empresa) → produto **Instagram** → "API com login do Instagram".
+2. Gere o token da sua conta e anote o **ID da conta do Instagram** e a **chave secreta do app do Instagram**. Permissões: `instagram_business_basic`, `instagram_business_manage_comments`, `instagram_business_manage_messages`.
+3. Na Vercel (Settings → Environment Variables), crie: `IG_USER_ID`, `IG_ACCESS_TOKEN`, `IG_APP_SECRET`, `WEBHOOK_VERIFY_TOKEN` (ex.: `kr4-atendente`). Depois, **Redeploy**.
+4. Em Instagram → Configurar webhooks: URL acima, token de verificação = `WEBHOOK_VERIFY_TOKEN`, assine **comments** e **messages**.
+5. Teste comentando "quero" com outra conta. Em modo de desenvolvimento, só contas testadoras do app funcionam; publique o app para valer para todos.
+
+Opcionais: `MENSAGEM` (use `{link}` e `{nome}`), `RESPOSTA_PUBLICA` (variações separadas por `|`, ou `off`), `PALAVRAS` (lista própria, separada por vírgula), `RESPONDER_DIRECT=off`.
+
+Regras da Meta: 1 mensagem por comentário, até 7 dias depois. O token dura 60 dias. Para renovar, abra
+`https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=SEU_TOKEN` e atualize `IG_ACCESS_TOKEN`.
+
+Teste local: `npm run test:instagram`.

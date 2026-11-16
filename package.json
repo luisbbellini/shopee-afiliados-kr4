@@ -4,10 +4,13 @@
   "description": "Base do sistema de afiliados Shopee — cliente da Affiliate Open API + painel",
   "type": "module",
   "main": "server.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js",
     "mock": "SHOPEE_MOCK=1 node server.js",
-    "mock:win": "set SHOPEE_MOCK=1&& node server.js"
+    "mock:win": "set SHOPEE_MOCK=1&& node server.js",
+    "test:instagram": "node test/instagram.test.mjs"
   }
 }
