@@ -142,7 +142,8 @@
   .imggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
   .imgres{display:flex;flex-direction:column;gap:6px;background:var(--soft);border-radius:10px;padding:6px}
   .imgres img{width:100%;border-radius:8px;display:block;background:var(--panel)}
-  .imgres .acts{margin:0} .imgres .meta{font-size:11px}
+  .imgres .acts{margin:0} .imgres .meta{font-size:11px;line-height:1.35} .imgres .acts .b{padding:5px 8px}
+  .gridtitle{font-size:13px;margin:14px 0 8px;color:var(--ink)}
   .imgres.loading{aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:10px}
   .intro{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--muted)}
   .intro b{color:var(--ink);font-weight:600}
@@ -205,6 +206,7 @@
   <button data-t="opportunities">Oportunidades</button>
   <button data-t="trending">Em alta</button>
   <button data-t="favs">Para gravar</button>
+  <button data-t="gallery">Galeria</button>
   <button data-t="earnings">Ganhos</button>
   <button data-t="shops">Lojas</button>
   <button data-t="offers">Campanhas Shopee</button>
@@ -273,6 +275,12 @@
 <!-- PARA GRAVAR -->
 <section id="favs">
   <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, <b>edite a foto com IA</b> (fundo, modelo, estilo), gere o link com subId e baixe as fotos.</p>
+  <div class="out"></div>
+</section>
+
+<!-- GALERIA -->
+<section id="gallery">
+  <p class="intro">As imagens que você editou com IA ficam guardadas <b>aqui no celular</b> (armazenamento interno do app), separadas por produto. Dá para <b>compartilhar</b> direto no TikTok/WhatsApp, baixar, editar de novo ou apagar.</p>
   <div class="out"></div>
 </section>
 
@@ -435,6 +443,7 @@
         <li><b>Oportunidades</b>: ranking de produtos que vendem bem com provável pouca concorrência.</li>
         <li><b>Em alta</b>: produtos cujas vendas mais cresceram nos últimos dias (precisa do banco de dados).</li>
         <li><b>Para gravar</b>: sua lista de produtos escolhidos, com etapas, roteiro com IA, edição de foto com IA, link e fotos.</li>
+        <li><b>Galeria</b>: as imagens editadas com IA, guardadas no próprio celular.</li>
         <li><b>Ganhos</b>: comissão por dia, vídeos que mais venderam, meta do mês e quantas vendas faltam.</li>
         <li><b>Lojas</b>: lojas que pagam comissão (ordene por "Maior comissão").</li>
         <li><b>Campanhas Shopee</b>: campanhas e ofertas oficiais da Shopee.</li>
@@ -553,7 +562,8 @@
         <li>No detalhe de um produto toque em <b>Editar foto (IA)</b>, ou em <b>Para gravar</b> toque em <b>Editar foto</b>.</li>
         <li>Toque nas sugestões (uma por grupo: <b>Fundo</b>, <b>Modelo</b>, <b>Estilo</b>) ou escreva o que quer mudar.</li>
         <li>Escolha o formato (9:16 para TikTok/Stories, 4:5 para feed) e quantas variações, e toque em <b>Gerar imagens</b>. Cada uma leva de 20 segundos a 1 minuto.</li>
-        <li><b>Baixar</b> salva no celular. <b>Editar esta</b> faz novas mudanças em cima da imagem gerada.</li>
+        <li>Toda imagem gerada fica <b>guardada no celular</b>, na aba <b>Galeria</b> e no próprio editor do produto. <b>Compartilhar</b> manda direto para TikTok/WhatsApp/Instagram; <b>Baixar</b> salva na galeria de fotos; <b>Editar esta</b> faz novas mudanças em cima dela.</li>
+        <li>As imagens ficam só no aparelho onde foram criadas. Se limpar os dados do navegador ou desinstalar o app, elas somem: baixe as importantes.</li>
       </ol>
       <p><b>Regras que o painel sempre manda para a IA:</b> a peça continua igual (cor, modelagem, estampa, detalhes) e qualquer pessoa nova é fictícia. Mesmo assim, confira a imagem antes de postar: se a peça mudou, gere de novo.</p>
       <p>Ao postar, marque como <b>conteúdo gerado por IA</b> no TikTok/Instagram. Cada imagem custa alguns centavos na conta da IA.</p>
@@ -795,6 +805,7 @@ $('#tabs').addEventListener('click', (e) => {
   $$('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
   $$('main section').forEach((s) => s.classList.toggle('on', s.id === b.dataset.t));
   if (b.dataset.t === 'favs' && typeof renderFavs === 'function') renderFavs();
+  if (b.dataset.t === 'gallery' && typeof renderGallery === 'function') renderGallery();
   if (b.dataset.t === 'trending' && typeof loadTrending === 'function' && !state.trending) loadTrending();
 });
 

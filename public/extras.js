@@ -95,7 +95,7 @@ function renderFavs() {
         <div class="acts wrap">
           <button class="b sm p" onclick="openScript('${esc(x.itemId)}')">${x.script ? 'Ver roteiro' : 'Roteiro IA'}</button>
           <button class="b sm" onclick="favLink('${esc(x.itemId)}')">${x.shortLink ? 'Novo link' : 'Gerar link'}</button>
-          <button class="b sm" onclick="openImgEdit(FAV.get('${esc(x.itemId)}'))">Editar foto</button>
+          <button class="b sm" data-imgcount="${esc(x.itemId)}" onclick="openImgEdit(FAV.get('${esc(x.itemId)}'))">Editar foto</button>
           <button class="b sm" onclick="downloadPhoto('${esc(x.imageUrl)}','${esc(x.productName)}')">Foto</button>
           ${linkBtn(shopeeApp(x.productLink), 'Shopee')}${linkBtn(tiktokApp(x.productName), 'TikTok')}
           <button class="b sm" aria-label="Remover" onclick="if(confirm('Remover da lista?'))favDelete('${esc(x.itemId)}')">Remover</button>
@@ -103,6 +103,8 @@ function renderFavs() {
       </div>
     </div>`).join('') + '</div>' : `<div class="empty">${all.length ? 'Nada nesta etapa.' : 'Lista vazia. Toque na ★ de um produto (em Produtos, Oportunidades ou Em alta) para guardar aqui.'}</div>`);
 }
+const _renderFavs = renderFavs;
+renderFavs = function () { _renderFavs(); refreshGalleryCounts(); };
 async function favLink(id) {
   const x = FAV.get(String(id)); if (!x) return;
   const sub = prompt('subId para este link (ex.: vestido01-tiktok):', x.subId || '') ?? null;
@@ -261,6 +263,15 @@ function openImgEdit(item) {
   $('#imgTitle').textContent = 'Editar foto · ' + (item.productName || '').slice(0, 40);
   $('#imgOut').innerHTML = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
   $('#imgModal').classList.add('on'); $('#imgShade').classList.add('on');
+  showSavedInModal();
+}
+async function showSavedInModal() {
+  const list = await imgDbList(String(imgItem.itemId || ''));
+  const out = $('#imgOut'); revokeUrls('modal');
+  if (!list.length) return;
+  const h = document.createElement('h3'); h.className = 'gridtitle'; h.textContent = `Salvas no aparelho deste produto (${list.length})`;
+  out.innerHTML = '';
+  out.append(h, ...list.map((rec) => imgCard(rec, { inModal: true })));
 }
 function closeImgEdit() { $('#imgModal').classList.remove('on'); $('#imgShade').classList.remove('on'); }
 // sugestões: toca para acrescentar ao pedido (um por grupo)
@@ -295,15 +306,9 @@ async function genImages() {
       const r = await fetch('/api/image-edit', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey(), ...credHeaders() }, body: JSON.stringify(body) });
       if ((r.headers.get('content-type') || '').includes('application/json')) { const j = await r.json(); throw new Error(j.errors?.[0]?.message || 'Erro'); }
       const blob = await r.blob(); const info = decodeURIComponent(r.headers.get('x-info') || '');
-      const url = URL.createObjectURL(blob);
-      const name = `${slugify(imgItem.productName)}-ia-${Date.now()}.${blob.type.includes('png') ? 'png' : 'jpg'}`;
-      box.className = 'imgres';
-      box.innerHTML = `<img src="${url}" alt="Imagem editada: ${esc(prompt)}"><div class="acts"><a class="b sm" href="${url}" download="${name}" style="text-decoration:none;color:inherit;text-align:center">Baixar</a><button class="b sm">Editar esta</button></div><div class="meta">${esc(info)}</div>`;
-      box.querySelector('button').onclick = async () => {
-        imgSource = { b64: await blobToSmallDataURL(blob) };
-        $('#imgSrc').src = url; $('#imgSrcLabel').textContent = 'Editando a imagem gerada'; $('#imgPrompt').value = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
-        $('#imgModal').scrollTop = 0; toast('Agora as mudanças valem sobre esta imagem');
-      };
+      const rec = await imgDbAdd({ itemId: String(imgItem.itemId || ''), productName: imgItem.productName || '', productLink: imgItem.productLink || '', prompt, aspect, model: info, createdAt: Date.now(), blob });
+      box.replaceWith(imgCard(rec, { inModal: true }));
+      refreshGalleryCounts();
     } catch (e) {
       box.className = 'imgres loading'; box.style.color = 'var(--err)'; box.textContent = e.message;
       break; // não insiste se deu erro (evita cobrança repetida)
@@ -312,6 +317,118 @@ async function genImages() {
   btn.disabled = false; btn.textContent = 'Gerar imagens';
 }
 const slugify = (s) => String(s || 'produto').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40).toLowerCase() || 'produto';
+
+/* ---------------- imagens salvas no aparelho (IndexedDB) ---------------- */
+// Ficam no armazenamento interno do celular (navegador / app instalado), sem servidor.
+let _db = null;
+function imgDb() {
+  if (_db) return _db;
+  _db = new Promise((res, rej) => {
+    const req = indexedDB.open('painel-afiliados', 1);
+    req.onupgradeneeded = () => { const st = req.result.createObjectStore('images', { keyPath: 'id', autoIncrement: true }); st.createIndex('itemId', 'itemId'); st.createIndex('createdAt', 'createdAt'); };
+    req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+  });
+  return _db;
+}
+const tx = async (mode, fn) => { const db = await imgDb(); return new Promise((res, rej) => { const t = db.transaction('images', mode); const st = t.objectStore('images'); let out; Promise.resolve(fn(st)).then((v) => { out = v; }); t.oncomplete = () => res(out); t.onerror = () => rej(t.error); }); };
+const reqP = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function imgDbAdd(rec) {
+  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {}); // pede para o celular não apagar sozinho
+  const id = await tx('readwrite', (st) => reqP(st.add(rec)));
+  return { ...rec, id };
+}
+async function imgDbList(itemId) {
+  const all = await tx('readonly', (st) => reqP(itemId ? st.index('itemId').getAll(itemId) : st.getAll()));
+  return (all || []).sort((a, b) => b.createdAt - a.createdAt);
+}
+const imgDbDelete = (id) => tx('readwrite', (st) => reqP(st.delete(id)));
+const imgDbCount = () => tx('readonly', (st) => reqP(st.count()));
+
+const _urls = { modal: [], gallery: [] };
+function revokeUrls(k) { (_urls[k] || []).forEach((u) => URL.revokeObjectURL(u)); _urls[k] = []; }
+function blobUrl(blob, k) { const u = URL.createObjectURL(blob); (_urls[k] ||= []).push(u); return u; }
+const imgName = (rec) => `${slugify(rec.productName)}-ia-${rec.id}.${(rec.blob.type || '').includes('png') ? 'png' : 'jpg'}`;
+
+function imgCard(rec, { inModal = false } = {}) {
+  const url = blobUrl(rec.blob, inModal ? 'modal' : 'gallery');
+  const el = document.createElement('div'); el.className = 'imgres';
+  const when = new Date(rec.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([rec.blob], 'x.png', { type: rec.blob.type || 'image/png' })] }));
+  el.innerHTML = `<img src="${url}" alt="Imagem editada: ${esc(rec.prompt)}" loading="lazy">
+    <div class="acts wrap">
+      ${canShare ? '<button class="b sm" data-a="share">Compartilhar</button>' : ''}
+      <a class="b sm" href="${url}" download="${esc(imgName(rec))}" style="text-decoration:none;color:inherit;text-align:center">Baixar</a>
+      <button class="b sm" data-a="edit">Editar esta</button>
+      <button class="b sm" data-a="del" aria-label="Apagar imagem">Apagar</button>
+    </div>
+    <div class="meta">${esc(rec.prompt)}</div><div class="meta">${when}${rec.model ? ' · ' + esc(rec.model) : ''}</div>`;
+  el.querySelector('[data-a=share]')?.addEventListener('click', async () => {
+    try { await navigator.share({ files: [new File([rec.blob], imgName(rec), { type: rec.blob.type || 'image/png' })], title: rec.productName }); } catch {}
+  });
+  el.querySelector('[data-a=edit]').addEventListener('click', async () => {
+    if (!inModal) { const prod = FAV.get(rec.itemId) || { itemId: rec.itemId, productName: rec.productName, productLink: rec.productLink, imageUrl: 'x' }; openImgEdit(prod); }
+    imgSource = { b64: await blobToSmallDataURL(rec.blob) };
+    $('#imgSrc').src = url; $('#imgSrcLabel').textContent = 'Editando a imagem gerada'; $('#imgPrompt').value = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
+    $('#imgModal').scrollTop = 0; toast('Agora as mudanças valem sobre esta imagem');
+  });
+  el.querySelector('[data-a=del]').addEventListener('click', async () => {
+    if (!confirm('Apagar esta imagem do aparelho?')) return;
+    await imgDbDelete(rec.id); el.remove(); refreshGalleryCounts(); toast('Imagem apagada');
+  });
+  return el;
+}
+
+// Galeria: todas as imagens salvas, agrupadas por produto
+async function renderGallery() {
+  const out = $('#gallery .out'); revokeUrls('gallery');
+  const list = await imgDbList();
+  const est = navigator.storage?.estimate ? await navigator.storage.estimate() : null;
+  const persisted = navigator.storage?.persisted ? await navigator.storage.persisted() : null;
+  const used = list.reduce((s2, r) => s2 + (r.blob?.size || 0), 0);
+  out.innerHTML = `<div class="bar"><span class="info">${list.length} ${list.length === 1 ? 'imagem' : 'imagens'} · ${used < 1048576 ? Math.max(1, Math.round(used / 1024)) + ' KB' : (used / 1048576).toFixed(1).replace('.', ',') + ' MB'}${est?.quota ? ` · espaço livre ≈ ${(Math.max(0, est.quota - est.usage) / 1073741824).toFixed(1).replace('.', ',')} GB` : ''}</span>
+    ${list.length ? '<button class="b sm" onclick="zipGallery()">Baixar todas (zip)</button>' : ''}</div>
+    ${persisted === false && list.length ? '<div class="note warn">O celular pode apagar estes dados se faltar espaço. Para garantir, <b>instale o painel como app</b> (Manual → Instalar como aplicativo) e baixe as imagens importantes.</div>' : ''}
+    ${list.length ? '' : '<div class="empty">Nenhuma imagem ainda. Edite uma foto com IA (no detalhe do produto ou em Para gravar) e ela aparece aqui automaticamente.</div>'}`;
+  const groups = new Map();
+  for (const r of list) { const k = r.itemId || r.productName; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+  for (const [, recs] of groups) {
+    const h = document.createElement('h3'); h.className = 'gridtitle'; h.textContent = `${recs[0].productName || 'Produto'} (${recs.length})`;
+    const grid = document.createElement('div'); grid.className = 'imggrid';
+    recs.forEach((r) => grid.append(imgCard(r)));
+    out.append(h, grid);
+  }
+}
+async function zipGallery() {
+  const list = await imgDbList(); if (!list.length) return;
+  const files = await Promise.all(list.map(async (r) => ({ name: imgName(r), data: new Uint8Array(await r.blob.arrayBuffer()) })));
+  saveBlob({ blob: makeZipJS(files), name: 'imagens-ia.zip' });
+}
+// ZIP simples (sem compressão) feito no próprio celular
+const _crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function makeZipJS(files) {
+  const enc = new TextEncoder(); const parts = []; const central = []; let off = 0;
+  for (const f of files) {
+    let c = 0xffffffff; for (const x of f.data) c = _crcT[(c ^ x) & 0xff] ^ (c >>> 8); const crc = (c ^ 0xffffffff) >>> 0;
+    const nm = enc.encode(f.name); const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint32(14, crc, true); lh.setUint32(18, f.data.length, true); lh.setUint32(22, f.data.length, true); lh.setUint16(26, nm.length, true);
+    parts.push(lh, nm, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint32(16, crc, true); ch.setUint32(20, f.data.length, true); ch.setUint32(24, f.data.length, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+    central.push(ch, nm); off += 30 + nm.length + f.data.length;
+  }
+  const cdSize = central.reduce((s2, x) => s2 + x.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22)); end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...central, end], { type: 'application/zip' });
+}
+// contadores: aba Galeria e botão "Fotos IA (n)" em cada produto da lista
+async function refreshGalleryCounts() {
+  try {
+    const all = await imgDbList(); const t = $('nav button[data-t=gallery]'); if (t) t.textContent = all.length ? `Galeria (${all.length})` : 'Galeria';
+    const by = {}; all.forEach((r) => { by[r.itemId] = (by[r.itemId] || 0) + 1; });
+    $$('[data-imgcount]').forEach((b) => { const n = by[b.dataset.imgcount] || 0; b.textContent = n ? `Fotos IA (${n})` : 'Editar foto'; });
+    if ($('#gallery')?.classList.contains('on')) renderGallery();
+  } catch {}
+}
 
 /* ---------------- Ganhos ---------------- */
 const dayKey = (ts) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts * 1000));
@@ -462,6 +579,7 @@ async function initExtras() {
     STORE = !!s.store; window._aiServer = !!s.aiServer;
   } catch {}
   await favLoad();
+  refreshGalleryCounts();
   if (STORE) api('settings/get', {}).then((r) => { window._settings = r.settings; if (r.settings?.goal && !lsGet('goal')) lsSet('goal', r.settings.goal); });
 }
 initExtras();
