@@ -3,7 +3,7 @@
   "name": "Atendente Instagram — KR4",
   "short_name": "Atendente IG",
   "description": "Links enviados, pedidos e respostas do atendente automático do Instagram",
-  "start_url": "/instagram",
+  "start_url": "/instagram?app=ig",
   "scope": "/instagram",
   "display": "standalone",
   "orientation": "portrait",

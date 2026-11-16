@@ -91,7 +91,6 @@
   .instalar .tx{flex:1;min-width:0}
   #login .instalar{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
   #login .instalar .b{width:auto;margin:0}
-  @media (display-mode:standalone){.so-navegador{display:none!important}}
   .two{display:grid;gap:12px} @media (min-width:760px){.two{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -256,11 +255,11 @@
 
     <!-- CONTA -->
     <section id="conta">
-      <div class="card so-navegador" style="margin-bottom:12px">
+      <div class="card so-navegador" id="cardInstalar" style="margin-bottom:12px">
         <div class="instalar">
           <img src="/ig-icon-192.png" alt="">
           <div class="tx"><b>Instalar o app no celular</b><div class="hint" style="margin:2px 0 0" data-dica-instalar>Abre direto do ícone, em tela cheia, sem barra do navegador.</div></div>
-          <button class="b sm p" type="button" onclick="instalar()">Instalar</button>
+          <button class="b sm p" type="button" id="btnInstalarConta" onclick="instalar()">Instalar</button>
         </div>
         <div class="hint hidden" id="dicaIos" style="margin-top:12px">No iPhone: toque em <b>Compartilhar</b> (o quadrado com a seta, na barra do Safari) e depois em <b>Adicionar à Tela de Início</b>.</div>
       </div>
@@ -518,16 +517,35 @@ function trocarSenha(btn) {
 /* ---------------- INSTALAR APP ---------------- */
 let pedidoInstalar = null;
 const ehIos = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const ehAndroid = /android/i.test(navigator.userAgent);
+const telaCheia = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// O app "Atendente IG" abre com ?app=ig. Em tela cheia sem essa marca = estamos dentro de outro app (ex.: Afiliados).
+if (new URLSearchParams(location.search).get('app') === 'ig') { try { sessionStorage.setItem('igApp', '1'); } catch {} history.replaceState(null, '', location.pathname + location.hash); }
+const ehNossoApp = telaCheia && (() => { try { return sessionStorage.getItem('igApp') === '1'; } catch { return false; } })();
+const dentroDeOutroApp = telaCheia && !ehNossoApp;
+
 function atualizarInstalar() {
-  const pode = !instalado() && (pedidoInstalar || ehIos);
+  const pode = !ehNossoApp && (pedidoInstalar || ehIos || dentroDeOutroApp);
   document.querySelectorAll('[data-instalar]').forEach((b) => b.classList.toggle('hidden', !pode));
   document.querySelectorAll('[data-bloco-instalar]').forEach((b) => b.classList.toggle('hidden', !pode));
-  if (ehIos) document.querySelectorAll('[data-dica-instalar]').forEach((d) => d.textContent = 'No Safari: Compartilhar → Adicionar à Tela de Início.');
+  document.querySelectorAll('.so-navegador').forEach((el) => { if (!el.hasAttribute('data-bloco-instalar') && !el.hasAttribute('data-instalar')) el.classList.toggle('hidden', ehNossoApp); });
+  const dica = dentroDeOutroApp
+    ? 'Você está dentro do app Afiliados. Para ter o Atendente IG separado, abra no Chrome e instale de lá.'
+    : ehIos ? 'No Safari: Compartilhar → Adicionar à Tela de Início.' : 'Abre direto do ícone, em tela cheia, sem barra do navegador.';
+  document.querySelectorAll('[data-dica-instalar]').forEach((d) => d.textContent = dica);
+  const bc = document.getElementById('btnInstalarConta'); if (bc) bc.textContent = dentroDeOutroApp ? 'Abrir no Chrome' : 'Instalar';
+  document.querySelectorAll('[data-instalar]').forEach((b) => { if (b.id !== 'btnInstalarConta') b.textContent = dentroDeOutroApp ? 'Abrir no Chrome' : (b.closest('header') ? 'Instalar app' : 'Instalar'); });
 }
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pedidoInstalar = e; atualizarInstalar(); });
 window.addEventListener('appinstalled', () => { pedidoInstalar = null; atualizarInstalar(); toast('App instalado ✅ Procure "Atendente IG" na tela inicial.'); });
 async function instalar() {
+  if (dentroDeOutroApp) {
+    const url = `${location.origin}/instagram?instalar=1`;
+    if (ehAndroid) { location.href = `intent://${location.host}/instagram?instalar=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`; return; }
+    navigator.clipboard?.writeText(url).catch(() => {});
+    toast('Link copiado. Abra no navegador e instale de lá.');
+    return;
+  }
   if (pedidoInstalar) {
     pedidoInstalar.prompt();
     const { outcome } = await pedidoInstalar.userChoice;
@@ -537,12 +555,13 @@ async function instalar() {
     ir('conta'); $('#dicaIos').classList.remove('hidden');
     toast('Toque em Compartilhar e depois em "Adicionar à Tela de Início"');
   } else {
-    toast('Abra o menu do navegador (⋮) e toque em "Instalar app" ou "Adicionar à tela inicial".');
+    toast('No menu do Chrome (⋮), toque em "Instalar app" ou "Adicionar à tela inicial".');
   }
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 atualizarInstalar();
 if (location.hash === '#atividade') setTimeout(() => token && ir('atividade'), 0);
+if (new URLSearchParams(location.search).has('instalar')) { history.replaceState(null, '', location.pathname); setTimeout(() => { if (token) ir('conta'); toast('Toque em Instalar para colocar o Atendente IG na tela inicial'); }, 300); }
 
 token ? abrirApp() : telaLogin();
 setInterval(() => { if (token && !document.hidden && document.querySelector('#resumo.on, #atividade.on')) carregar(); }, 60000);
