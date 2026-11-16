@@ -204,7 +204,7 @@ export async function GET(request) {
       ? new Response(p.get('hub.challenge') || '')
       : new Response('token de verificação incorreto', { status: 403 });
   }
-  return new Response('Atendente KR4 no ar ✅ Painel: /instagram');
+  return Response.redirect(`${url.origin}/instagram`, 302); // quem abrir no navegador vai para o painel
 }
 
 export async function POST(request) {
