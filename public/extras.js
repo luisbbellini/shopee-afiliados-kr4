@@ -305,6 +305,11 @@ async function genScript() {
 }
 
 /* ---------------- fotos e cores do produto ---------------- */
+async function apiSignal(path, signal, body) {
+  const r = await fetch('/api/' + path, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey(), ...credHeaders() }, body: JSON.stringify(body) });
+  const txt = await r.text();
+  try { return JSON.parse(txt); } catch { return { errors: [{ message: `Servidor respondeu ${r.status}: ${txt.slice(0, 80)}` }] }; }
+}
 let phItem = null, phList = [];
 const PH_CACHE = new Map();
 async function openPhotos(item) {
@@ -316,16 +321,18 @@ async function openPhotos(item) {
   const key = String(item.itemId || item.productLink || '');
   let r = PH_CACHE.get(key);
   if (!r) {
-    try { r = await api('product-photos', { itemId: item.itemId, shopId: item.shopId, productLink: item.productLink, offerLink: item.offerLink, imageUrl: item.imageUrl }); }
-    catch { r = { errors: [{ message: 'A busca demorou demais ou falhou. Tente de novo; se continuar, salve as fotos pelo app da Shopee e use "Usar foto do celular" na edição.' }] }; }
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 25000);
+    try { r = await apiSignal('product-photos', ctl.signal, { itemId: item.itemId, shopId: item.shopId, productLink: item.productLink, offerLink: item.offerLink, imageUrl: item.imageUrl }); }
+    catch (e) { r = { errors: [{ message: (e.name === 'AbortError' ? 'A busca passou de 25 segundos. ' : 'Falha na busca (' + e.message + '). ') + 'A busca demorou demais ou falhou. Tente de novo; se continuar, salve as fotos pelo app da Shopee e use "Usar foto do celular" na edição.' }] }; }
+    clearTimeout(tm);
     if (phItem !== item) return;
-    if (r.errors) { $('#phOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>${item.imageUrl ? `<button class="b sm" onclick="downloadPhoto('${esc(item.imageUrl)}','${esc(item.productName || 'produto')}')">Baixar a foto principal</button>` : ''}`; return; }
+    if (r.errors) { $('#phOut').innerHTML = `<p style="color:var(--err);font-size:14px;margin:0 0 10px">${esc(r.errors[0].message || JSON.stringify(r.errors[0]))}</p>${item.imageUrl ? `<button class="b sm" onclick="downloadPhoto('${esc(item.imageUrl)}','${esc(item.productName || 'produto')}')">Baixar a foto principal</button>` : ''}`; return; }
     if (!r.blocked) PH_CACHE.set(key, r);
   }
   phList = r.photos || [];
   const cores = phList.filter((p) => p.group === 'cor'), fotos = phList.filter((p) => p.group !== 'cor');
   const tiers = (r.tiers || []).map((t) => `<b>${esc(t.name || 'Opções')}:</b> ${esc(t.options.join(', '))}`).join(' · ');
-  $('#phInfo').innerHTML = (r.blocked && r.errors?.length ? `<div class="meta">Resposta da Shopee: ${esc(r.errors.join(' | '))}</div>` : '') + (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
+  $('#phInfo').innerHTML = (r.blocked && r.errors?.length ? `<div style="font-size:13px;margin-bottom:6px">Resposta da Shopee: ${esc(r.errors.join(' | '))}</div>` : '') + (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
     `${cores.length ? `${cores.length} cor(es) com foto` : 'Nenhuma cor com foto própria'} · ${fotos.length} foto(s) do anúncio${tiers ? `<br>${tiers}` : ''}`;
   if (phList.length) $('#phActs').innerHTML = `<button class="b sm p" id="phAll" onclick="photosDownloadAll()">Baixar todas (${phList.length})</button><button class="b sm" onclick="photosDownloadEach()">Baixar uma por uma</button>`;
   const grid = (title, arr) => arr.length ? `<h3 class="gridtitle">${title}</h3><div class="imggrid">${arr.map((p) => {
