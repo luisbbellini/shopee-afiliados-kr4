@@ -133,7 +133,7 @@
     <h1>Atendente <span>Instagram</span></h1>
     <span class="pill" id="pillConta">…</span>
     <div class="spacer"></div>
-    <button class="b sm p so-navegador hidden" data-instalar onclick="instalar()">Instalar app</button>
+    <button class="b sm p so-navegador hidden" data-instalar onclick="instalar()" style="white-space:nowrap">Instalar</button>
     <a class="b sm" href="/" title="Painel de afiliados Shopee" style="text-decoration:none">Shopee</a>
   </header>
   <nav>
@@ -523,25 +523,28 @@ const telaCheia = matchMedia('(display-mode: standalone)').matches || navigator.
 if (new URLSearchParams(location.search).get('app') === 'ig') { try { sessionStorage.setItem('igApp', '1'); } catch {} history.replaceState(null, '', location.pathname + location.hash); }
 const ehNossoApp = telaCheia && (() => { try { return sessionStorage.getItem('igApp') === '1'; } catch { return false; } })();
 const dentroDeOutroApp = telaCheia && !ehNossoApp;
+// Endereço próprio do Atendente: assim o Android não confunde com o app Afiliados (que é dono do endereço principal).
+const HOST_APP = 'atendente-ig-kr4.vercel.app';
+const noEnderecoProprio = location.host === HOST_APP;
 
 function atualizarInstalar() {
-  const pode = !ehNossoApp && (pedidoInstalar || ehIos || dentroDeOutroApp);
+  const pode = !ehNossoApp && (pedidoInstalar || ehIos || dentroDeOutroApp || (ehAndroid && !noEnderecoProprio));
   document.querySelectorAll('[data-instalar]').forEach((b) => b.classList.toggle('hidden', !pode));
   document.querySelectorAll('[data-bloco-instalar]').forEach((b) => b.classList.toggle('hidden', !pode));
   document.querySelectorAll('.so-navegador').forEach((el) => { if (!el.hasAttribute('data-bloco-instalar') && !el.hasAttribute('data-instalar')) el.classList.toggle('hidden', ehNossoApp); });
-  const dica = dentroDeOutroApp
-    ? 'Você está dentro do app Afiliados. Para ter o Atendente IG separado, abra no Chrome e instale de lá.'
+  const dica = (dentroDeOutroApp || (ehAndroid && !noEnderecoProprio && !pedidoInstalar))
+    ? 'O app abre no Chrome, no endereço próprio do Atendente. Lá, toque em Instalar.'
     : ehIos ? 'No Safari: Compartilhar → Adicionar à Tela de Início.' : 'Abre direto do ícone, em tela cheia, sem barra do navegador.';
   document.querySelectorAll('[data-dica-instalar]').forEach((d) => d.textContent = dica);
-  const bc = document.getElementById('btnInstalarConta'); if (bc) bc.textContent = dentroDeOutroApp ? 'Abrir no Chrome' : 'Instalar';
-  document.querySelectorAll('[data-instalar]').forEach((b) => { if (b.id !== 'btnInstalarConta') b.textContent = dentroDeOutroApp ? 'Abrir no Chrome' : (b.closest('header') ? 'Instalar app' : 'Instalar'); });
+  const bc = document.getElementById('btnInstalarConta'); if (bc) bc.textContent = (dentroDeOutroApp || (ehAndroid && !noEnderecoProprio && !pedidoInstalar)) ? 'Abrir no Chrome' : 'Instalar';
+  document.querySelectorAll('[data-instalar]').forEach((b) => { if (b.id !== 'btnInstalarConta') b.textContent = 'Instalar'; });
 }
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pedidoInstalar = e; atualizarInstalar(); });
 window.addEventListener('appinstalled', () => { pedidoInstalar = null; atualizarInstalar(); toast('App instalado ✅ Procure "Atendente IG" na tela inicial.'); });
 async function instalar() {
-  if (dentroDeOutroApp) {
-    const url = `${location.origin}/instagram?instalar=1`;
-    if (ehAndroid) { location.href = `intent://${location.host}/instagram?instalar=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`; return; }
+  if (dentroDeOutroApp || (ehAndroid && !noEnderecoProprio && !pedidoInstalar)) {
+    const url = `https://${HOST_APP}/instagram?instalar=1`;
+    if (ehAndroid) { location.href = `intent://${HOST_APP}/instagram?instalar=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`; return; }
     navigator.clipboard?.writeText(url).catch(() => {});
     toast('Link copiado. Abra no navegador e instale de lá.');
     return;
