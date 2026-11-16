@@ -176,7 +176,7 @@ function openScript(idOrObj) {
   window._lastScript = null; $('#scGo').textContent = scriptItem.script ? 'Gerar outro roteiro' : 'Gerar roteiro';
   $('#scOut').innerHTML = scriptItem.script ? renderScript(structuredClone(scriptItem.script)) : '';
   $('#scModal').classList.add('on'); $('#scShade').classList.add('on');
-  $$('#scOut textarea.ed').forEach(scAutoGrow);
+  $$('#scOut textarea.ed').forEach(scAutoGrow); refreshNarration();
 }
 function closeScript() { $('#scModal').classList.remove('on'); $('#scShade').classList.remove('on'); }
 function scriptText(s) {
@@ -197,6 +197,10 @@ function renderScript(s) {
       <span class="meta" id="scSaved">${inFav ? 'Edite à vontade: salva sozinho na lista' : 'Edite à vontade'}</span>
       ${inFav ? '' : `<button class="b sm" onclick="scSaveToList()">★ Salvar na lista Para gravar</button>`}</div>
     ${s._ia ? `<p class="meta" style="display:block;margin:0">Gerado por ${esc(s._ia)}${s._editado ? ' · editado por você' : ''}</p>` : ''}
+    ${fmt !== 'texto' || (s.cenas || []).some((c) => (c.fala || '').trim()) ? `<div class="scb narr"><h3>${fmt === 'primeira_pessoa' ? 'Fala completa' : 'Narração completa'} (para o CapCut)</h3>
+      <p class="meta" style="display:block;margin:0 0 6px">Todo o texto falado em ordem, separado das cenas. Cole no CapCut em <b>Texto → Texto para fala</b> ou use como guia para gravar sua voz. Atualiza sozinho quando você edita as cenas.</p>
+      <div id="narrPreview" class="narr-text"></div><div class="meta" id="narrInfo"></div>
+      <div class="acts wrap"><button class="b sm p" onclick="copyNarration(false)">Copiar narração</button><button class="b sm" onclick="copyNarration(true)">Copiar com tempos</button></div></div>` : ''}
     <div class="scb"><h3>Gancho (3 primeiros segundos)</h3>${ta('gancho', s.gancho, 2, 'Frase que prende a atenção')}<button class="b sm" onclick="copy(window._lastScript.gancho)">Copiar</button></div>
     <div class="scb"><h3>Cenas · ${esc(FORMAT_LABEL[fmt] || 'roteiro')}</h3>
       <ol class="cenas ed-cenas">${s.cenas.map((c, i) => `<li>
@@ -240,6 +244,28 @@ function copyGrokAll() {
   copy(cs.map((c, i) => `CENA ${i + 1} (${c.tempo || ''})\n${grokPrompt(c)}`).join('\n\n-----\n\n'));
 }
 function resetGrokRules() { window._lastScript.grok_regras = GROK_RULES_DEFAULT; window._lastScript._editado = true; scRerender(); scScheduleSave(); toast('Regras padrão restauradas'); }
+// Narração completa: gancho + falas das cenas + chamada final, em ordem (para o CapCut)
+const _norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+function narrationParts(s) {
+  const out = [];
+  const add = (tempo, txt) => { txt = String(txt || '').trim(); if (!txt) return; if (out.some((o) => _norm(o.txt) === _norm(txt) || _norm(o.txt).includes(_norm(txt)))) return; out.push({ tempo, txt }); };
+  const falas = (s.cenas || []).filter((c) => (c.fala || '').trim());
+  // o gancho só entra se a 1ª fala não for ele mesmo
+  if (s.gancho && !(falas[0] && (_norm(falas[0].fala).includes(_norm(s.gancho)) || _norm(s.gancho).includes(_norm(falas[0].fala))))) add('início', s.gancho);
+  falas.forEach((c) => add(c.tempo, c.fala));
+  add('final', s.cta);
+  return out;
+}
+const narrationText = (s) => narrationParts(s).map((p) => p.txt).join('\n\n');
+const narrationTimed = (s) => narrationParts(s).map((p) => `[${p.tempo || '—'}] ${p.txt}`).join('\n');
+function copyNarration(timed) { const t = timed ? narrationTimed(window._lastScript) : narrationText(window._lastScript); if (!t) return toast('Ainda não há fala/narração neste roteiro'); copy(t); }
+function refreshNarration() {
+  const el = $('#narrPreview'); if (!el) return;
+  const t = narrationText(window._lastScript);
+  el.textContent = t || 'Sem falas ainda. Escreva a fala/narração nas cenas.';
+  const w = t ? t.split(/\s+/).filter(Boolean).length : 0;
+  $('#narrInfo').textContent = w ? `${w} palavras · cerca de ${Math.max(1, Math.round(w / 2.5))} s de fala` : '';
+}
 function scAutoGrow(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
 function scEdit(el) {
   const s = window._lastScript; const path = el.dataset.path.split('.');
@@ -247,6 +273,7 @@ function scEdit(el) {
   else { let o = s; for (let i = 0; i < path.length - 1; i++) o = o[path[i]]; o[path.at(-1)] = el.value; }
   s._editado = true;
   if (el.tagName === 'TEXTAREA') scAutoGrow(el);
+  refreshNarration();
   scScheduleSave();
 }
 let scTimer = null;
@@ -259,7 +286,7 @@ function scScheduleSave() {
     const l = $('#scSaved'); if (l) l.textContent = '✓ Salvo na lista';
   }, 800);
 }
-function scRerender() { $('#scOut').innerHTML = renderScript(window._lastScript); $$('#scOut textarea.ed').forEach(scAutoGrow); }
+function scRerender() { $('#scOut').innerHTML = renderScript(window._lastScript); $$('#scOut textarea.ed').forEach(scAutoGrow); refreshNarration(); }
 function scAddScene() { window._lastScript.cenas.push({ tempo: '', fala: '', texto_tela: '', imagem: '' }); window._lastScript._editado = true; scRerender(); scScheduleSave(); $$('#scOut .ed-cenas li').at(-1)?.querySelector('textarea')?.focus(); }
 function scDelScene(i) { if (!confirm('Apagar esta cena?')) return; window._lastScript.cenas.splice(i, 1); window._lastScript._editado = true; scRerender(); scScheduleSave(); }
 function scMove(i, d) { const c = window._lastScript.cenas; [c[i], c[i + d]] = [c[i + d], c[i]]; window._lastScript._editado = true; scRerender(); scScheduleSave(); }
@@ -273,7 +300,7 @@ async function genScript() {
   const r = await api('script', { product: scriptItem, tone: $('#scTone').value, duration: +$('#scDur').value, extra: $('#scExtra').value, format: $('#scFormat').value, used: $('#scUsed').checked });
   btn.disabled = false; btn.textContent = r.errors ? 'Gerar roteiro' : 'Gerar outro roteiro';
   if (r.errors) { $('#scOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
-  $('#scOut').innerHTML = renderScript(r.script); $$('#scOut textarea.ed').forEach(scAutoGrow);
+  $('#scOut').innerHTML = renderScript(r.script); $$('#scOut textarea.ed').forEach(scAutoGrow); refreshNarration();
   if (FAV.has(String(scriptItem.itemId))) { await favUpsert({ itemId: scriptItem.itemId, script: r.script }, true); toast('Roteiro salvo na lista'); }
 }
 
