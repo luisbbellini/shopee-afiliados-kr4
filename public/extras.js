@@ -308,10 +308,11 @@ async function genScript() {
 let imgItem = null, imgSource = null; // imgSource: { url } da Shopee ou { b64 } de uma imagem já editada
 function openImgEdit(item) {
   if (!item?.imageUrl) return toast('Produto sem foto');
+  buildImgPresets();
   imgItem = item; imgSource = { url: item.imageUrl };
   $('#imgSrc').src = item.imageUrl; $('#imgSrcLabel').textContent = 'Foto original do produto';
   $('#imgTitle').textContent = 'Editar foto · ' + (item.productName || '').slice(0, 40);
-  $('#imgOut').innerHTML = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
+  $('#imgOut').innerHTML = ''; resetImgPresets();
   $('#imgModal').classList.add('on'); $('#imgShade').classList.add('on');
   showSavedInModal();
 }
@@ -324,15 +325,64 @@ async function showSavedInModal() {
   out.append(h, ...list.map((rec) => imgCard(rec, { inModal: true })));
 }
 function closeImgEdit() { $('#imgModal').classList.remove('on'); $('#imgShade').classList.remove('on'); }
-// sugestões: toca para acrescentar ao pedido (um por grupo)
-document.addEventListener('click', (e) => {
-  const c = e.target.closest('#imgModal .presets .chip'); if (!c) return;
-  const group = c.parentElement; const ta = $('#imgPrompt');
-  const prev = group.querySelector('.chip.on');
+// Sugestões da edição de foto: um item por grupo, mais um campo para digitar a sua opção.
+const IMG_GROUPS = [
+  { id: 'fundo', title: 'Fundo', open: true, tpl: (t) => `trocar o fundo por ${t}`, ph: 'ex: um jardim com flores', items: [
+    ['Estúdio branco', 'um estúdio branco liso, iluminação suave'], ['Estúdio colorido', 'um estúdio com fundo liso rosa claro'], ['Parede de tijolos', 'uma parede de tijolos aparentes'],
+    ['Praia', 'uma praia ao pôr do sol'], ['Piscina', 'a beira de uma piscina em dia de sol'], ['Cidade', 'uma rua urbana charmosa durante o dia'], ['Cidade à noite', 'uma rua da cidade à noite com luzes desfocadas'],
+    ['Shopping', 'um corredor de shopping moderno'], ['Sala', 'uma sala de estar aconchegante e bem decorada'], ['Quarto', 'um quarto claro e organizado'], ['Cozinha', 'uma cozinha moderna e clara'],
+    ['Jardim', 'um jardim florido'], ['Parque', 'um parque arborizado'], ['Campo', 'um campo aberto com luz de fim de tarde'], ['Cafeteria', 'uma cafeteria moderna'], ['Restaurante', 'um restaurante elegante'],
+    ['Escritório', 'um escritório moderno'], ['Academia', 'uma academia bem iluminada'], ['Festa', 'uma festa com luzes coloridas desfocadas'], ['Casamento', 'uma decoração de casamento elegante'],
+    ['Natal', 'uma decoração de Natal elegante'], ['Ano Novo', 'uma festa de Ano Novo com luzes douradas'], ['Viagem', 'um ponto turístico desfocado ao fundo'] ] },
+  { id: 'modelo', title: 'Modelo (pessoa fictícia)', open: true, tpl: (t) => `trocar a modelo por ${t}`, ph: 'ex: uma mulher ruiva de óculos', items: [
+    ['Plus size', 'uma modelo plus size'], ['Magra', 'uma modelo magra'], ['Curvilínea', 'uma modelo curvilínea'], ['Negra', 'uma modelo negra'], ['Morena', 'uma modelo morena'],
+    ['Loira', 'uma modelo loira'], ['Ruiva', 'uma modelo ruiva'], ['Asiática', 'uma modelo asiática'], ['Cacheada', 'uma modelo de cabelos cacheados'], ['Cabelo curto', 'uma modelo de cabelo curto'],
+    ['20 e poucos', 'uma mulher jovem de cerca de 22 anos'], ['30+', 'uma mulher de cerca de 32 anos'], ['40+', 'uma mulher elegante de cerca de 45 anos'], ['60+', 'uma mulher elegante de cerca de 62 anos'],
+    ['Gestante', 'uma modelo gestante'], ['Alta', 'uma modelo alta'], ['Baixinha', 'uma modelo de baixa estatura'], ['Masculino', 'um modelo masculino'], ['Masculino plus size', 'um modelo masculino plus size'],
+    ['Sem pessoa', 'nenhuma pessoa: mostrar só a peça'] ] },
+  { id: 'pose', title: 'Pose e enquadramento', tpl: (t) => `pose/enquadramento: ${t}`, ph: 'ex: segurando uma bolsa no ombro', items: [
+    ['Corpo inteiro', 'corpo inteiro, de frente'], ['Meio corpo', 'meio corpo'], ['Andando', 'caminhando em direção à câmera'], ['Sentada', 'sentada de forma natural'],
+    ['De lado', 'de lado, mostrando o perfil da peça'], ['De costas', 'de costas, mostrando a parte de trás da peça'], ['Girando', 'girando, com o tecido em movimento'], ['Sorrindo', 'sorrindo, expressão natural'],
+    ['Olhando para longe', 'olhando para o lado, pose espontânea'], ['Close no detalhe', 'close-up no detalhe do tecido e acabamento'] ] },
+  { id: 'luz', title: 'Luz e clima', tpl: (t) => `iluminação/clima: ${t}`, ph: 'ex: luz neon azul', items: [
+    ['Luz natural', 'luz natural de janela, clima de manhã'], ['Pôr do sol', 'luz dourada de fim de tarde (golden hour)'], ['Dia de sol', 'dia ensolarado, céu azul'], ['Nublado suave', 'luz suave de dia nublado'],
+    ['Noite', 'noite, com luzes da cidade'], ['Estúdio', 'luz de estúdio profissional'], ['Verão', 'clima de verão, cores vivas'], ['Inverno', 'clima de inverno, tons frios'], ['Outono', 'clima de outono, folhas secas'] ] },
+  { id: 'estilo', title: 'Estilo da foto', tpl: (t) => `estilo da foto: ${t}`, ph: 'ex: foto preto e branco', items: [
+    ['Catálogo', 'foto de catálogo de e-commerce, limpa'], ['Editorial', 'editorial de revista de moda'], ['Minimalista', 'minimalista, poucos elementos'], ['Flat lay', 'a peça em flat lay, estendida sobre uma superfície clara, vista de cima, sem pessoa'],
+    ['Cabide / arara', 'a peça pendurada num cabide em uma arara, sem pessoa'], ['Vintage', 'estética vintage, tons de filme analógico'], ['Cores vibrantes', 'cores vibrantes e alegres'], ['Tons neutros', 'paleta de tons neutros e bege'] ] },
+];
+function buildImgPresets() {
+  const box = $('#imgPresets'); if (!box || box.dataset.built) return;
+  box.innerHTML = IMG_GROUPS.map((g) => `<details data-group="${g.id}" ${g.open ? 'open' : ''}>
+      <summary><span>${g.title}</span><span class="cur"></span></summary>
+      <div class="chips">${g.items.map(([label, val]) => `<button type="button" class="chip" data-v="${esc(val)}">${esc(label)}</button>`).join('')}</div>
+      <div class="custom"><input placeholder="Ou digite: ${esc(g.ph)}" aria-label="${esc(g.title)}: opção digitada" onkeydown="if(event.key==='Enter'){event.preventDefault();imgCustom(this)}"><button type="button" class="b sm" onclick="imgCustom(this.previousElementSibling)">Usar</button></div>
+    </details>`).join('');
+  box.dataset.built = '1';
+}
+// troca a frase do grupo dentro do pedido, sem mexer no que foi digitado no campo grande
+function setGroupPhrase(det, phrase, label) {
+  const ta = $('#imgPrompt'); const old = det.dataset.cur || '';
   let parts = ta.value.split(/\s*;\s*/).filter(Boolean);
-  if (prev) { parts = parts.filter((p) => p !== prev.dataset.p); prev.classList.remove('on'); }
-  if (prev !== c) { parts.push(c.dataset.p); c.classList.add('on'); }
+  if (old) parts = parts.filter((p) => p !== old);
+  if (phrase) parts.push(phrase);
   ta.value = parts.join('; ');
+  det.dataset.cur = phrase || '';
+  det.querySelector('.cur').textContent = label || '';
+  det.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', !!phrase && c.dataset.v && phrase === IMG_GROUPS.find((g) => g.id === det.dataset.group).tpl(c.dataset.v)));
+}
+function imgCustom(input) {
+  const det = input.closest('details'); const g = IMG_GROUPS.find((x) => x.id === det.dataset.group);
+  const t = input.value.trim(); if (!t) return;
+  setGroupPhrase(det, g.tpl(t), t); input.value = ''; toast(`${g.title}: "${t}"`);
+}
+function resetImgPresets() { $$('#imgPresets details').forEach((d) => { d.dataset.cur = ''; d.querySelector('.cur').textContent = ''; d.querySelectorAll('.chip').forEach((c) => c.classList.remove('on')); }); }
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('#imgPresets .chip'); if (!c) return;
+  const det = c.closest('details'); const g = IMG_GROUPS.find((x) => x.id === det.dataset.group);
+  const phrase = g.tpl(c.dataset.v);
+  if (det.dataset.cur === phrase) setGroupPhrase(det, '', ''); // tocar de novo desmarca
+  else setGroupPhrase(det, phrase, c.textContent);
 });
 // reduz a imagem antes de mandar de novo (economiza dados e cabe no limite do servidor)
 async function blobToSmallDataURL(blob, max = 1536) {
@@ -418,7 +468,7 @@ function imgCard(rec, { inModal = false } = {}) {
   el.querySelector('[data-a=edit]').addEventListener('click', async () => {
     if (!inModal) { const prod = FAV.get(rec.itemId) || { itemId: rec.itemId, productName: rec.productName, productLink: rec.productLink, imageUrl: 'x' }; openImgEdit(prod); }
     imgSource = { b64: await blobToSmallDataURL(rec.blob) };
-    $('#imgSrc').src = url; $('#imgSrcLabel').textContent = 'Editando a imagem gerada'; $('#imgPrompt').value = ''; $$('#imgModal .presets .chip').forEach((c) => c.classList.remove('on'));
+    $('#imgSrc').src = url; $('#imgSrcLabel').textContent = 'Editando a imagem gerada'; $('#imgPrompt').value = ''; resetImgPresets();
     $('#imgModal').scrollTop = 0; toast('Agora as mudanças valem sobre esta imagem');
   });
   el.querySelector('[data-a=del]').addEventListener('click', async () => {

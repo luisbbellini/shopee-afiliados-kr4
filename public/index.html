@@ -139,7 +139,11 @@
   .linklike{font:inherit;background:none;border:0;padding:0;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
   #imgModal{width:min(620px,calc(100% - 24px))} #imgShade{z-index:24}
   .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
-  .presets h3{margin:4px 0 6px;font-size:12px}
+  .presets details{border-top:1px solid var(--line);padding:6px 0}
+  .presets summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:4px 0;list-style:none;display:flex;justify-content:space-between;gap:8px}
+  .presets summary::-webkit-details-marker{display:none}
+  .presets summary .cur{font-weight:400;color:var(--accent);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+  .presets .custom{display:flex;gap:6px;margin-top:4px} .presets .custom input{flex:1;min-width:0;font-size:15px}
   .presets .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
   .presets .chip{font-size:12.5px;padding:5px 10px}
   .imggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
@@ -565,7 +569,7 @@
       <p>Funciona com chave do <b>ChatGPT</b> ou do <b>Gemini</b> (o Claude não gera imagens).</p>
       <ol>
         <li>No detalhe de um produto toque em <b>Editar foto (IA)</b>, ou em <b>Para gravar</b> toque em <b>Editar foto</b>.</li>
-        <li>Toque nas sugestões (uma por grupo: <b>Fundo</b>, <b>Modelo</b>, <b>Estilo</b>) ou escreva o que quer mudar.</li>
+        <li>Escolha nos grupos <b>Fundo</b>, <b>Modelo</b>, <b>Pose e enquadramento</b>, <b>Luz e clima</b> e <b>Estilo da foto</b>. Cada grupo aceita uma opção; tocar de novo desmarca, e o título do grupo mostra o que está escolhido.</li><li>Não achou a opção? Digite no campo <b>“Ou digite…”</b> do grupo e toque em <b>Usar</b> (ou Enter). Ela entra no pedido no lugar da sugestão daquele grupo.</li><li>O campo <b>O que mudar na foto</b> aceita qualquer pedido livre, e o que você digita ali é mantido ao trocar as sugestões.</li>
         <li>Escolha o formato (9:16 para TikTok/Stories, 4:5 para feed) e quantas variações, e toque em <b>Gerar imagens</b>. Cada uma leva de 20 segundos a 1 minuto.</li>
         <li>Toda imagem gerada fica <b>guardada no celular</b>, na aba <b>Galeria</b> e no próprio editor do produto. <b>Compartilhar</b> manda direto para TikTok/WhatsApp/Instagram; <b>Baixar</b> salva na galeria de fotos; <b>Editar esta</b> faz novas mudanças em cima dela.</li>
         <li>As imagens ficam só no aparelho onde foram criadas. Se limpar os dados do navegador ou desinstalar o app, elas somem: baixe as importantes.</li>
@@ -630,30 +634,7 @@
 <div class="modal" id="imgModal" role="dialog" aria-labelledby="imgTitle">
   <div class="bar" style="margin:0"><h2 id="imgTitle" style="flex:1;font-size:15px">Editar foto com IA</h2><button class="b sm" onclick="closeImgEdit()">Fechar</button></div>
   <div class="srcrow"><img id="imgSrc" alt="Foto de origem"><div class="meta" id="imgSrcLabel" style="display:block">Foto original do produto</div></div>
-  <div class="presets">
-    <div><h3>Fundo</h3><div class="chips" data-group="fundo">
-      <button class="chip" data-p="trocar o fundo por um estúdio branco liso, iluminação suave">Estúdio branco</button>
-      <button class="chip" data-p="trocar o fundo por uma praia ao pôr do sol">Praia</button>
-      <button class="chip" data-p="trocar o fundo por uma rua urbana charmosa durante o dia">Cidade</button>
-      <button class="chip" data-p="trocar o fundo por uma sala de estar aconchegante e bem decorada">Casa</button>
-      <button class="chip" data-p="trocar o fundo por uma cafeteria moderna">Cafeteria</button>
-      <button class="chip" data-p="trocar o fundo por uma decoração de Natal elegante">Natal</button>
-    </div></div>
-    <div><h3>Modelo (pessoa fictícia)</h3><div class="chips" data-group="modelo">
-      <button class="chip" data-p="trocar a modelo por uma modelo plus size">Plus size</button>
-      <button class="chip" data-p="trocar a modelo por uma modelo negra">Negra</button>
-      <button class="chip" data-p="trocar a modelo por uma modelo morena de cabelos cacheados">Morena</button>
-      <button class="chip" data-p="trocar a modelo por uma modelo loira">Loira</button>
-      <button class="chip" data-p="trocar a modelo por uma mulher de cerca de 45 anos, elegante">Mulher 40+</button>
-      <button class="chip" data-p="trocar a pessoa por um modelo masculino">Masculino</button>
-    </div></div>
-    <div><h3>Estilo</h3><div class="chips" data-group="estilo">
-      <button class="chip" data-p="mostrar a peça em flat lay, estendida sobre uma superfície clara, vista de cima, sem pessoa">Flat lay</button>
-      <button class="chip" data-p="close-up no detalhe do tecido e acabamento">Close no tecido</button>
-      <button class="chip" data-p="luz natural de janela, clima de manhã">Luz natural</button>
-      <button class="chip" data-p="pose de corpo inteiro caminhando">Corpo inteiro</button>
-    </div></div>
-  </div>
+  <div class="presets" id="imgPresets"></div>
   <div class="f"><label for="imgPrompt">O que mudar na foto</label><textarea id="imgPrompt" rows="3" style="font-family:inherit;font-size:15px" placeholder="Toque nas sugestões acima ou escreva, ex.: trocar o fundo por um jardim florido"></textarea></div>
   <div class="bar" style="margin:0">
     <div class="f"><label for="imgAspect">Formato</label><select id="imgAspect"><option value="9:16">Vertical 9:16 (TikTok/Stories)</option><option value="4:5" selected>Vertical 4:5 (feed)</option><option value="1:1">Quadrado 1:1</option></select></div>
