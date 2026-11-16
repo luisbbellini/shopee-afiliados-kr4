@@ -96,7 +96,7 @@ function renderFavs() {
           <button class="b sm p" onclick="openScript('${esc(x.itemId)}')">${x.script ? 'Ver roteiro' : 'Roteiro IA'}</button>
           <button class="b sm" onclick="favLink('${esc(x.itemId)}')">${x.shortLink ? 'Novo link' : 'Gerar link'}</button>
           <button class="b sm" data-imgcount="${esc(x.itemId)}" onclick="openImgEdit(FAV.get('${esc(x.itemId)}'))">Editar foto</button>
-          <button class="b sm" onclick="downloadPhoto('${esc(x.imageUrl)}','${esc(x.productName)}')">Foto</button>
+          <button class="b sm" onclick="openPhotos(FAV.get('${esc(x.itemId)}'))">Fotos e cores</button>
           ${linkBtn(shopeeApp(x.productLink), 'Shopee')}${linkBtn(tiktokApp(x.productName), 'TikTok')}
           <button class="b sm" aria-label="Remover" onclick="if(confirm('Remover da lista?'))favDelete('${esc(x.itemId)}')">Remover</button>
         </div>
@@ -302,6 +302,67 @@ async function genScript() {
   if (r.errors) { $('#scOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
   $('#scOut').innerHTML = renderScript(r.script); $$('#scOut textarea.ed').forEach(scAutoGrow); refreshNarration();
   if (FAV.has(String(scriptItem.itemId))) { await favUpsert({ itemId: scriptItem.itemId, script: r.script }, true); toast('Roteiro salvo na lista'); }
+}
+
+/* ---------------- fotos e cores do produto ---------------- */
+let phItem = null, phList = [];
+const PH_CACHE = new Map();
+async function openPhotos(item) {
+  if (!item) return;
+  if ($('#imgModal').classList.contains('on')) closeImgEdit();
+  phItem = item; $('#phTitle').textContent = 'Fotos e cores · ' + (item.productName || '').slice(0, 40);
+  $('#phOut').innerHTML = '<div class="meta">Buscando as fotos do produto…</div>'; $('#phActs').innerHTML = ''; $('#phInfo').textContent = '';
+  $('#phModal').classList.add('on'); $('#phShade').classList.add('on');
+  const key = String(item.itemId || item.productLink || '');
+  let r = PH_CACHE.get(key);
+  if (!r) {
+    r = await api('product-photos', { itemId: item.itemId, shopId: item.shopId, productLink: item.productLink, offerLink: item.offerLink, imageUrl: item.imageUrl });
+    if (r.errors) { $('#phOut').innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
+    if (!r.blocked) PH_CACHE.set(key, r);
+  }
+  phList = r.photos || [];
+  const cores = phList.filter((p) => p.group === 'cor'), fotos = phList.filter((p) => p.group !== 'cor');
+  const tiers = (r.tiers || []).map((t) => `<b>${esc(t.name || 'Opções')}:</b> ${esc(t.options.join(', '))}`).join(' · ');
+  $('#phInfo').innerHTML = (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
+    `${cores.length ? `${cores.length} cor(es) com foto` : 'Nenhuma cor com foto própria'} · ${fotos.length} foto(s) do anúncio${tiers ? `<br>${tiers}` : ''}`;
+  if (phList.length) $('#phActs').innerHTML = `<button class="b sm p" id="phAll" onclick="photosDownloadAll()">Baixar todas (${phList.length})</button><button class="b sm" onclick="photosDownloadEach()">Baixar uma por uma</button>`;
+  const grid = (title, arr) => arr.length ? `<h3 class="gridtitle">${title}</h3><div class="imggrid">${arr.map((p) => {
+    const i = phList.indexOf(p);
+    return `<div class="phcard"><img src="${esc(p.url)}" alt="${esc(p.label)}" loading="lazy"><div class="lb">${esc(p.label)}</div>
+      <div class="acts"><button class="b sm" onclick="photoDownload(${i})">Baixar</button><button class="b sm" onclick="photoEdit(${i})">Editar com IA</button></div></div>`;
+  }).join('')}</div>` : '';
+  $('#phOut').innerHTML = grid('Cores', cores) + grid('Fotos do anúncio', fotos) || '<div class="meta">Nenhuma foto encontrada.</div>';
+}
+function closePhotos() { $('#phModal').classList.remove('on'); $('#phShade').classList.remove('on'); }
+const photoName = (p) => `${phItem?.productName || 'produto'} ${p.group === 'cor' ? 'cor ' : ''}${p.label}`;
+function photoDownload(i) { const p = phList[i]; if (p) downloadPhoto(p.url, photoName(p)); }
+async function photosDownloadAll() {
+  const btn = $('#phAll'); btn.disabled = true; btn.textContent = `Baixando ${phList.length} fotos…`;
+  try { saveBlob(await apiBlob('images-zip', { items: phList.map((p) => ({ url: p.url, name: photoName(p) })), filename: (phItem?.productName || 'produto').slice(0, 40) + ' fotos' })); } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = `Baixar todas (${phList.length})`;
+}
+// no celular é mais prático: cada foto vai direto para Downloads/Galeria
+async function photosDownloadEach() {
+  for (let i = 0; i < phList.length; i++) {
+    toast(`Baixando ${i + 1} de ${phList.length}…`);
+    try { saveBlob(await apiBlob('image', { url: phList[i].url, name: photoName(phList[i]) })); } catch (e) { toast(e.message); }
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  toast('Fotos baixadas');
+}
+function photoEdit(i) {
+  const p = phList[i]; if (!p) return;
+  closePhotos();
+  openImgEdit({ ...phItem, imageUrl: p.url });
+  $('#imgSrcLabel').textContent = p.group === 'cor' ? `Cor: ${p.label}` : p.label;
+}
+async function imgUseLocal(input) {
+  const f = input.files?.[0]; input.value = ''; if (!f) return;
+  try {
+    imgSource = { b64: await blobToSmallDataURL(f) };
+    $('#imgSrc').src = imgSource.b64; $('#imgSrcLabel').textContent = 'Foto do celular: ' + f.name;
+    toast('As mudanças vão valer sobre esta foto');
+  } catch { toast('Não consegui abrir essa imagem'); }
 }
 
 /* ---------------- editar foto com IA ---------------- */

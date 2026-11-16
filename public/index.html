@@ -137,7 +137,8 @@
   .grokbox textarea{font-size:13px}
   .alts{padding-left:18px;margin:4px 0} .alts li{margin-bottom:6px}
   .linklike{font:inherit;background:none;border:0;padding:0;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
-  #imgModal{width:min(620px,calc(100% - 24px))} #imgShade{z-index:24}
+  #imgModal,#phModal{width:min(620px,calc(100% - 24px))} #imgShade,#phShade{z-index:24}
+  .phcard{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:var(--soft)} .phcard img{width:100%;aspect-ratio:1;object-fit:cover;background:#fff} .phcard .lb{font-weight:600;font-size:13px;padding:6px 8px 0} .phcard .acts{padding:6px 8px 8px;display:flex;gap:6px;flex-wrap:wrap} #phOut .imggrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))} .phcard .acts .b{flex:1}
   .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
   .presets details{border-top:1px solid var(--line);padding:6px 0}
   .presets summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:4px 0;list-style:none;display:flex;justify-content:space-between;gap:8px}
@@ -574,7 +575,7 @@
         <li>Escolha o formato (9:16 para TikTok/Stories, 4:5 para feed) e quantas variações, e toque em <b>Gerar imagens</b>. Cada uma leva de 20 segundos a 1 minuto.</li>
         <li>Toda imagem gerada fica <b>guardada no celular</b>, na aba <b>Galeria</b> e no próprio editor do produto. <b>Compartilhar</b> manda direto para TikTok/WhatsApp/Instagram; <b>Baixar</b> salva na galeria de fotos; <b>Editar esta</b> faz novas mudanças em cima dela.</li>
         <li>As imagens ficam só no aparelho onde foram criadas. Se limpar os dados do navegador ou desinstalar o app, elas somem: baixe as importantes.</li>
-      </ol>
+      <li><b>Fotos e cores:</b> no produto (ou em Para gravar) toque em <b>Fotos e cores</b> para ver todas as fotos do anúncio e uma foto por cor. Dá para <b>Baixar todas</b> (zip), <b>Baixar uma por uma</b> (melhor no celular) ou tocar em <b>Editar com IA</b> na cor que quiser. Se a Shopee não liberar as fotos extras, aparece só a principal: salve as fotos pelo app da Shopee e use <b>Usar foto do celular</b> na tela de edição.</li></ol>
       <p><b>Regras que o painel sempre manda para a IA:</b> a peça continua igual (cor, modelagem, estampa, detalhes) e qualquer pessoa nova é fictícia. Mesmo assim, confira a imagem antes de postar: se a peça mudou, gere de novo.</p>
       <p>Ao postar, marque como <b>conteúdo gerado por IA</b> no TikTok/Instagram. Cada imagem custa alguns centavos na conta da IA.</p>
       <p><b>Se aparecer "organization must be verified"</b>: a OpenAI exige verificar a conta para gerar imagens. Entre em <b>platform.openai.com → Settings → Organization → Verify</b> (pede um documento) e tente de novo depois de aprovado. Com chave do Gemini isso não é necessário.</p>
@@ -631,10 +632,19 @@
   <div id="alertBox" style="display:flex;flex-direction:column;gap:10px"></div>
 </div>
 
+<div class="shade" id="phShade" onclick="closePhotos()"></div>
+<div class="modal" id="phModal" role="dialog" aria-labelledby="phTitle">
+  <div class="bar" style="margin:0"><h2 id="phTitle" style="flex:1;font-size:15px">Fotos e cores</h2><button class="b sm" onclick="closePhotos()">Fechar</button></div>
+  <div id="phInfo" class="meta" style="display:block"></div>
+  <div class="bar" style="margin:0" id="phActs"></div>
+  <div id="phOut"></div>
+</div>
 <div class="shade" id="imgShade" onclick="closeImgEdit()"></div>
 <div class="modal" id="imgModal" role="dialog" aria-labelledby="imgTitle">
   <div class="bar" style="margin:0"><h2 id="imgTitle" style="flex:1;font-size:15px">Editar foto com IA</h2><button class="b sm" onclick="closeImgEdit()">Fechar</button></div>
-  <div class="srcrow"><img id="imgSrc" alt="Foto de origem"><div class="meta" id="imgSrcLabel" style="display:block">Foto original do produto</div></div>
+  <div class="srcrow"><img id="imgSrc" alt="Foto de origem"><div><div class="meta" id="imgSrcLabel" style="display:block">Foto original do produto</div>
+    <div class="bar" style="margin:6px 0 0"><button type="button" class="b sm" onclick="openPhotos(imgItem)">Outras fotos / cores</button>
+    <label class="b sm" style="cursor:pointer">Usar foto do celular<input type="file" accept="image/*" hidden onchange="imgUseLocal(this)"></label></div></div></div>
   <div class="presets" id="imgPresets"></div>
   <div class="f"><label for="imgPrompt">O que mudar na foto</label><textarea id="imgPrompt" rows="3" style="font-family:inherit;font-size:15px" placeholder="Toque nas sugestões acima ou escreva, ex.: trocar o fundo por um jardim florido"></textarea></div>
   <div class="bar" style="margin:0">
@@ -1069,6 +1079,7 @@ function openObj(o) {
       <button class="b sm" onclick="closeDrawer();openScript(FAV.get(String(current.itemId)) || current)">Roteiro IA</button>
       ${o.imageUrl ? `<button class="b sm" onclick="closeDrawer();openImgEdit(current)">Editar foto (IA)</button>` : ''}
       ${o.imageUrl ? `<button class="b sm" onclick="downloadPhoto(current.imageUrl, current.productName)">Baixar foto</button>` : ''}
+      <button class="b sm" onclick="closeDrawer();openPhotos(current)">Fotos e cores</button>
     </div><div id="histBox"></div>` : ''}
     ${link ? `<div class="bar">
       ${o.offerLink ? `<button class="b sm" onclick="copy('${esc(o.offerLink)}')">Copiar link de afiliado</button>` : ''}
