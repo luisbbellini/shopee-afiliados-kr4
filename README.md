@@ -102,24 +102,29 @@ Banco: conectar "Upstash for Redis" no Storage da Vercel (cria `KV_REST_API_URL`
 
 ---
 
-## Atendente do Instagram (`/api/instagram`)
+## Atendente do Instagram (`/instagram`)
 
 Quem comentar **"quero"**, **"link"**, **"manda link"**, **"eu já quero"** e variações recebe o link do post no direct automaticamente (e uma resposta pública "Te mandei no direct! 📩"). Quem pedir pelo direct recebe o link do último post.
 
-**URL do webhook:** `https://shopee-afiliados-kr4.vercel.app/api/instagram`
+- **Painel:** `https://shopee-afiliados-kr4.vercel.app/instagram`. Tem login com usuário e senha e mostra quantos chegaram, quantos pediram, quantos links foram enviados e quantos responderam, além da atividade, da conexão e das mensagens.
+- **Webhook da Meta:** `https://shopee-afiliados-kr4.vercel.app/api/instagram`
 
 Como o link é escolhido: 1) `src/instagram/links.js` (link fixo por código do post), 2) link na legenda (prefere Shopee), 3) link do próprio post.
 
-### Configurar
+### Requisitos
+- **Banco de dados:** na Vercel, Storage → Create Database → **Upstash for Redis** (grátis) → conectar ao projeto → Redeploy. Ele guarda os números, o login e as configurações. O painel da Shopee também usa esse banco (favoritos, "Em alta").
+- **Primeiro acesso ao painel:** você cria o usuário e a senha. Para isso é pedida a senha do painel da Shopee (`PANEL_KEY`). Se preferir fixar o login, use `ADMIN_USUARIO` e `ADMIN_SENHA` na Vercel.
+
+### Conectar o Instagram (pelo painel, aba Conexão)
 1. developers.facebook.com → Criar app (Empresa) → produto **Instagram** → "API com login do Instagram".
-2. Gere o token da sua conta e anote o **ID da conta do Instagram** e a **chave secreta do app do Instagram**. Permissões: `instagram_business_basic`, `instagram_business_manage_comments`, `instagram_business_manage_messages`.
-3. Na Vercel (Settings → Environment Variables), crie: `IG_USER_ID`, `IG_ACCESS_TOKEN`, `IG_APP_SECRET`, `WEBHOOK_VERIFY_TOKEN` (ex.: `kr4-atendente`). Depois, **Redeploy**.
-4. Em Instagram → Configurar webhooks: URL acima, token de verificação = `WEBHOOK_VERIFY_TOKEN`, assine **comments** e **messages**.
-5. Teste comentando "quero" com outra conta. Em modo de desenvolvimento, só contas testadoras do app funcionam; publique o app para valer para todos.
+2. Gere o token da sua conta e copie também a **chave secreta do app do Instagram**. Cole os dois no painel e salve. O ID da conta é preenchido sozinho, e o token é renovado sozinho antes de vencer.
+3. Na Meta, configure o webhook com a URL e o token de verificação que aparecem no painel e assine **comments** e **messages**.
+4. Teste comentando "quero" com outra conta. Em modo de desenvolvimento só contas testadoras funcionam. Publique o app para valer para todos.
 
-Opcionais: `MENSAGEM` (use `{link}` e `{nome}`), `RESPOSTA_PUBLICA` (variações separadas por `|`, ou `off`), `PALAVRAS` (lista própria, separada por vírgula), `RESPONDER_DIRECT=off`.
+As variáveis antigas (`IG_USER_ID`, `IG_ACCESS_TOKEN`, `IG_APP_SECRET`, `WEBHOOK_VERIFY_TOKEN`, `MENSAGEM`, `RESPOSTA_PUBLICA`, `PALAVRAS`, `RESPONDER_DIRECT`) ainda funcionam, mas o que for salvo no painel tem prioridade.
 
-Regras da Meta: 1 mensagem por comentário, até 7 dias depois. O token dura 60 dias. Para renovar, abra
-`https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=SEU_TOKEN` e atualize `IG_ACCESS_TOKEN`.
+**"Responderam"** conta cada pessoa uma única vez: alguém que recebeu o link e depois mandou qualquer mensagem no direct.
+
+Regras da Meta: 1 mensagem por comentário, até 7 dias depois.
 
 Teste local: `npm run test:instagram`.

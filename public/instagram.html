@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atendente Instagram — KR4</title>
+<meta name="theme-color" content="#1d1d1b">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script>(function(){try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<style>
+  :root{--bg:#f6f6f4;--panel:#fff;--ink:#1c1c1a;--muted:#6b6b66;--line:#e4e3de;--soft:#efeee9;
+    --accent:#c1356f;--accent-soft:#f7e3ec;--ok:#1f8a4c;--warn:#b26b00;--err:#c0362c;--r:10px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
+  @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--muted:#9a9993;--line:#2e2e2b;--soft:#252523;--accent:#e0628f;--accent-soft:#3a2230;color-scheme:dark}}
+  :root[data-theme=dark]{--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--muted:#9a9993;--line:#2e2e2b;--soft:#252523;--accent:#e0628f;--accent-soft:#3a2230;color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:-.01em;white-space:nowrap} header h1 span{color:var(--accent)}
+  .spacer{flex:1}
+  .pill{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--soft);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw;min-width:0;flex-shrink:1}
+  .pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.err{color:var(--err)}
+  nav{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto;position:sticky;top:49px;z-index:4}
+  nav button{border:0;background:none;padding:11px 10px;font:inherit;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+  main{padding:16px;max-width:980px;margin:0 auto}
+  section{display:none} section.on{display:block}
+  h2{font-size:13px;font-weight:600;color:var(--muted);margin:22px 0 10px;text-transform:uppercase;letter-spacing:.04em}
+  h2:first-child{margin-top:4px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  @media (min-width:760px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  .kpi .lbl{font-size:12px;color:var(--muted)} .kpi .val{font-size:28px;font-weight:680;letter-spacing:-.02em;margin:2px 0;font-variant-numeric:tabular-nums}
+  .kpi .sub{font-size:12px;color:var(--muted)} .kpi.main .val{color:var(--accent)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:6px 12px;border-radius:99px;font:inherit;font-size:13px;cursor:pointer}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+  .chart{display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:8px}
+  .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;position:relative;min-width:0}
+  .bar i{display:block;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px}
+  .bar b{display:block;background:var(--ok);border-radius:3px 3px 0 0;position:absolute;left:25%;right:25%;bottom:0}
+  .axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:var(--accent);vertical-align:-1px}
+  .legend span.g::before{background:var(--ok)}
+  .list{display:flex;flex-direction:column}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0;padding-top:2px}
+  .row .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:15px;background:var(--soft)}
+  .row .tx{flex:1;min-width:0} .row .tt{font-weight:600} .row .ds{color:var(--muted);font-size:12.5px;word-break:break-word}
+  .row .tm{font-size:12px;color:var(--muted);white-space:nowrap}
+  .row .n{font-weight:680;font-variant-numeric:tabular-nums}
+  a{color:var(--accent)}
+  label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px} label:first-child{margin-top:0}
+  .hint{font-size:12px;color:var(--muted);margin-top:5px}
+  input,textarea{width:100%;font:inherit;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  textarea{min-height:96px;resize:vertical}
+  input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+  .b{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 14px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+  .b.p{background:var(--accent);border-color:var(--accent);color:#fff}
+  .b.sm{padding:6px 10px;font-size:13px}
+  .b:disabled{opacity:.55;cursor:default}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .inline{display:flex;gap:6px} .inline input{flex:1;min-width:0}
+  .copy{font-family:var(--mono);font-size:12.5px}
+  .switch{display:flex;align-items:center;gap:10px;margin-top:14px;font-weight:600;font-size:13px;cursor:pointer}
+  .switch input{width:auto;accent-color:var(--accent);transform:scale(1.25)}
+  .note{border-radius:var(--r);padding:12px 14px;margin-bottom:12px;font-size:13.5px;border:1px solid var(--line);background:var(--soft)}
+  .note.warn{border-color:#e7c58a;background:#fbf3e4;color:#6b4a00}
+  .note.err{border-color:#ebb3ad;background:#fbeceb;color:#7a231b}
+  @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .note.warn{background:#2f2615;color:#f0cf8f;border-color:#57461f}:root:not([data-theme=light]) .note.err{background:#311a18;color:#f2b1aa;border-color:#5b2a25}}
+  :root[data-theme=dark] .note.warn{background:#2f2615;color:#f0cf8f;border-color:#57461f}
+  :root[data-theme=dark] .note.err{background:#311a18;color:#f2b1aa;border-color:#5b2a25}
+  ol.steps{margin:6px 0 0;padding-left:20px} ol.steps li{margin:5px 0}
+  .empty{color:var(--muted);text-align:center;padding:26px 10px}
+  #login{min-height:100vh;display:grid;place-items:center;padding:20px}
+  #login .card{width:100%;max-width:380px;padding:22px}
+  #login h1{font-size:18px;margin:0 0 4px} #login p{color:var(--muted);margin:0 0 18px;font-size:13.5px}
+  #login .b.p{width:100%;margin-top:18px}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;opacity:0;transition:.2s;pointer-events:none;z-index:50;max-width:92vw;font-size:13.5px}
+  .toast.on{opacity:1;transform:translateX(-50%)}
+  .hidden{display:none!important}
+  .two{display:grid;gap:12px} @media (min-width:760px){.two{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login" class="hidden">
+  <form class="card" id="formLogin" autocomplete="on">
+    <h1>Atendente <span style="color:var(--accent)">Instagram</span></h1>
+    <p id="loginSub">Entre para ver os números do atendente.</p>
+    <div id="loginAviso"></div>
+    <div id="camposLogin">
+      <label for="lUser">Usuário</label>
+      <input id="lUser" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="lPass">Senha</label>
+      <div class="inline"><input id="lPass" name="password" type="password" autocomplete="current-password" required>
+        <button class="b sm" type="button" onclick="olho('lPass')">Mostrar</button></div>
+      <div id="campoConfirma" class="hidden">
+        <label for="lPass2">Confirme a senha</label>
+        <input id="lPass2" type="password" autocomplete="new-password">
+      </div>
+      <div id="campoChave" class="hidden">
+        <label for="lChave">Senha do painel da Shopee</label>
+        <input id="lChave" type="password" autocomplete="off">
+        <div class="hint">É a mesma senha que você usa no painel de afiliados. Ela só é pedida agora, para garantir que é você quem está criando o acesso.</div>
+      </div>
+    </div>
+    <button class="b p" id="btnLogin" type="submit">Entrar</button>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header>
+    <h1>Atendente <span>Instagram</span></h1>
+    <span class="pill" id="pillConta">…</span>
+    <div class="spacer"></div>
+    <a class="b sm" href="/" title="Painel de afiliados Shopee" style="text-decoration:none">Shopee</a>
+  </header>
+  <nav>
+    <button class="on" data-tab="resumo">Resumo</button>
+    <button data-tab="atividade">Atividade</button>
+    <button data-tab="conexao">Conexão</button>
+    <button data-tab="mensagens">Mensagens</button>
+    <button data-tab="conta">Conta</button>
+  </nav>
+  <main>
+    <div id="avisos"></div>
+
+    <!-- RESUMO -->
+    <section id="resumo" class="on">
+      <div class="chips" id="periodos">
+        <button class="chip" data-p="1">Hoje</button>
+        <button class="chip on" data-p="7">7 dias</button>
+        <button class="chip" data-p="30">30 dias</button>
+        <button class="chip" data-p="total">Desde o início</button>
+      </div>
+      <div class="grid">
+        <div class="card kpi"><div class="lbl">Recebidos</div><div class="val" id="kRec">0</div><div class="sub" id="kRecSub">—</div></div>
+        <div class="card kpi"><div class="lbl">Pedidos de link</div><div class="val" id="kPed">0</div><div class="sub" id="kPedSub">—</div></div>
+        <div class="card kpi main"><div class="lbl">Links enviados</div><div class="val" id="kEnv">0</div><div class="sub" id="kEnvSub">—</div></div>
+        <div class="card kpi"><div class="lbl">Responderam</div><div class="val" id="kResp">0</div><div class="sub" id="kRespSub">—</div></div>
+      </div>
+
+      <h2>Últimos 30 dias</h2>
+      <div class="card">
+        <div class="chart" id="grafico"></div>
+        <div class="axis"><span id="eixoIni"></span><span>hoje</span></div>
+        <div class="legend"><span>Links enviados</span><span class="g">Responderam</span></div>
+      </div>
+
+      <h2>Posts que mais geraram pedidos</h2>
+      <div class="card"><div class="list" id="posts"></div></div>
+    </section>
+
+    <!-- ATIVIDADE -->
+    <section id="atividade">
+      <div class="chips" id="filtros">
+        <button class="chip on" data-f="">Tudo</button>
+        <button class="chip" data-f="enviado">Enviados</button>
+        <button class="chip" data-f="respondeu">Responderam</button>
+        <button class="chip" data-f="falha">Falhas</button>
+      </div>
+      <div class="card"><div class="list" id="log"></div></div>
+      <div class="hint" style="margin-top:8px">Mostra as últimas 200 ações. Atualiza ao abrir a aba ou tocar em <a href="#" onclick="carregar();return false">atualizar</a>.</div>
+    </section>
+
+    <!-- CONEXÃO -->
+    <section id="conexao">
+      <div class="card" id="statusConexao"></div>
+
+      <h2>1. Token do Instagram</h2>
+      <div class="card">
+        <label for="cToken">Token de acesso</label>
+        <div class="inline"><input id="cToken" type="password" autocomplete="off" spellcheck="false" placeholder="cole o token aqui">
+          <button class="b sm" type="button" onclick="olho('cToken')">Mostrar</button></div>
+        <div class="hint" id="tokenInfo"></div>
+        <label for="cSecret">Chave secreta do app do Instagram</label>
+        <div class="inline"><input id="cSecret" type="password" autocomplete="off" spellcheck="false">
+          <button class="b sm" type="button" onclick="olho('cSecret')">Mostrar</button></div>
+        <div class="hint">Serve para conferir que os avisos vêm mesmo da Meta.</div>
+        <label for="cId">ID da conta do Instagram</label>
+        <input id="cId" inputmode="numeric" autocomplete="off" placeholder="preenchido sozinho ao salvar o token">
+        <div class="actions">
+          <button class="b p" onclick="salvarConexao(this)">Salvar</button>
+          <button class="b" onclick="testar(this)">Testar conexão</button>
+          <button class="b" onclick="renovar(this)">Renovar token agora</button>
+        </div>
+      </div>
+
+      <h2>2. Webhook (cole no app da Meta)</h2>
+      <div class="card">
+        <label>URL de callback</label>
+        <div class="inline"><input id="wUrl" class="copy" readonly><button class="b sm" onclick="copiar('wUrl')">Copiar</button></div>
+        <label for="wToken">Token de verificação</label>
+        <div class="inline"><input id="wToken" class="copy" autocomplete="off" spellcheck="false"><button class="b sm" onclick="copiar('wToken')">Copiar</button></div>
+        <div class="hint">Pode trocar se quiser, mas salve aqui antes de colar na Meta. Assine os campos <b>comments</b> e <b>messages</b>.</div>
+        <div class="actions"><button class="b" onclick="salvarCampos(this,{verifyToken:$('#wToken').value})">Salvar token de verificação</button></div>
+      </div>
+
+      <h2>Onde pegar o token</h2>
+      <div class="card">
+        <ol class="steps">
+          <li>Entre em <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> e crie um app do tipo <b>Empresa</b>.</li>
+          <li>Adicione o produto <b>Instagram</b> → <b>API com login do Instagram</b>.</li>
+          <li>Em <b>Gerar tokens de acesso</b>, adicione sua conta do Instagram (precisa ser Comercial ou Criador de conteúdo) e copie o token.</li>
+          <li>Na mesma tela fica a <b>chave secreta do app do Instagram</b>.</li>
+          <li>Cole os dois aqui e toque em <b>Salvar</b>. Depois configure o webhook com os dados acima.</li>
+        </ol>
+        <div class="hint" style="margin-top:10px">Enquanto o app da Meta estiver em modo de desenvolvimento, só contas testadoras recebem resposta. Publique o app para valer para todo mundo.</div>
+      </div>
+    </section>
+
+    <!-- MENSAGENS -->
+    <section id="mensagens">
+      <div class="card">
+        <label for="mMsg">Mensagem no direct</label>
+        <textarea id="mMsg"></textarea>
+        <div class="hint"><b>{link}</b> vira o link do post e <b>{nome}</b> vira o @ da pessoa.</div>
+
+        <label class="switch"><input type="checkbox" id="mPubOn"> Responder também no comentário</label>
+        <div id="boxPub">
+          <label for="mPub">Respostas no comentário (uma por linha, o atendente sorteia)</label>
+          <textarea id="mPub"></textarea>
+        </div>
+
+        <label for="mPal">Palavras que disparam o envio</label>
+        <textarea id="mPal"></textarea>
+        <div class="hint">Separe por vírgula. Maiúsculas, acentos, emojis e letras repetidas já são tratados ("QUEROOO!!" = quero). "Não quero" é ignorado.</div>
+
+        <label class="switch"><input type="checkbox" id="mDirect"> Atender quem pedir pelo direct (envia o link do último post)</label>
+
+        <div class="actions"><button class="b p" onclick="salvarMensagens(this)">Salvar mensagens</button></div>
+      </div>
+    </section>
+
+    <!-- CONTA -->
+    <section id="conta">
+      <div class="card">
+        <div id="contaInfo" class="hint" style="margin:0 0 4px"></div>
+        <div id="formSenha">
+          <label for="sNovoUser">Usuário</label>
+          <input id="sNovoUser" autocomplete="username" autocapitalize="none" spellcheck="false">
+          <label for="sAtual">Senha atual</label>
+          <input id="sAtual" type="password" autocomplete="current-password">
+          <label for="sNova">Nova senha</label>
+          <input id="sNova" type="password" autocomplete="new-password">
+          <div class="hint">Ao trocar, os outros aparelhos conectados saem automaticamente.</div>
+          <div class="actions"><button class="b p" onclick="trocarSenha(this)">Salvar usuário e senha</button></div>
+        </div>
+      </div>
+      <div class="actions"><button class="b" onclick="sair()">Sair deste aparelho</button>
+        <button class="b" onclick="tema()">Tema claro/escuro</button></div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const API = '/api/instagram?acao=';
+const ls = { get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} } };
+let token = ls.get('igToken');
+let dados = null, periodo = '7', filtro = '', estado = null;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = (n) => Number(n || 0).toLocaleString('pt-BR');
+const pct = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '—');
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 2600); }
+function olho(id) { const i = document.getElementById(id); i.type = i.type === 'password' ? 'text' : 'password'; }
+function copiar(id) { const i = document.getElementById(id); navigator.clipboard?.writeText(i.value).then(() => toast('Copiado'), () => { i.select(); document.execCommand('copy'); toast('Copiado'); }); }
+function tema() { const r = document.documentElement; const atual = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); r.dataset.theme = atual === 'dark' ? 'light' : 'dark'; ls.set('theme', r.dataset.theme); }
+
+async function api(acao, corpo, metodo = 'POST') {
+  const r = await fetch(API + acao, {
+    method: metodo,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    body: metodo === 'POST' ? JSON.stringify(corpo || {}) : undefined,
+  });
+  const j = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor' }));
+  if (r.status === 401 && j.login) { sair(true); throw new Error(j.erro); }
+  if (!r.ok || j.erro) throw new Error(j.erro || 'Erro ' + r.status);
+  return j;
+}
+async function ocupado(btn, fn) {
+  const txt = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Aguarde…'; }
+  try { return await fn(); } catch (e) { toast(e.message); } finally { if (btn) { btn.disabled = false; btn.textContent = txt; } }
+}
+
+/* ---------------- LOGIN ---------------- */
+async function telaLogin() {
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  try { estado = await api('estado', null, 'GET'); } catch (e) { estado = { temUsuario: true }; }
+  const criar = !estado.temUsuario;
+  $('#loginSub').textContent = criar ? 'Primeiro acesso: crie o usuário e a senha deste painel.' : 'Entre para ver os números do atendente.';
+  $('#btnLogin').textContent = criar ? 'Criar acesso' : 'Entrar';
+  $('#campoConfirma').classList.toggle('hidden', !criar);
+  $('#campoChave').classList.toggle('hidden', !(criar && estado.precisaChavePainel));
+  $('#lPass').autocomplete = criar ? 'new-password' : 'current-password';
+  const semBanco = estado.banco === false && !estado.viaVercel;
+  $('#loginAviso').innerHTML = semBanco
+    ? `<div class="note warn"><b>Falta conectar o banco de dados.</b> Ele guarda os números, o login e as configurações.<ol class="steps"><li>Abra o projeto <b>shopee-afiliados-kr4</b> na Vercel.</li><li>Vá em <b>Storage</b> → <b>Create Database</b> → <b>Upstash for Redis</b> (grátis) → conecte ao projeto.</li><li>Faça um <b>Redeploy</b> e volte aqui.</li></ol></div>`
+    : '';
+  $('#camposLogin').classList.toggle('hidden', semBanco);
+  $('#btnLogin').classList.toggle('hidden', semBanco);
+}
+$('#formLogin').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  ocupado($('#btnLogin'), async () => {
+    const usuario = $('#lUser').value.trim(), senha = $('#lPass').value;
+    let r;
+    if (estado && !estado.temUsuario) {
+      if (senha !== $('#lPass2').value) throw new Error('As senhas não são iguais');
+      r = await api('criar-usuario', { usuario, senha, chavePainel: $('#lChave').value });
+    } else r = await api('entrar', { usuario, senha });
+    token = r.token; ls.set('igToken', token); ls.set('igUser', r.usuario);
+    $('#lPass').value = $('#lPass2').value = $('#lChave').value = '';
+    abrirApp();
+  });
+});
+function sair(silencioso) { token = ''; ls.set('igToken', ''); if (!silencioso) toast('Você saiu deste aparelho'); telaLogin(); }
+
+/* ---------------- APP ---------------- */
+function abrirApp() { $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); carregar(); }
+
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main section').forEach((s) => s.classList.toggle('on', s.id === b.dataset.tab));
+  if (b.dataset.tab === 'atividade' || b.dataset.tab === 'resumo') carregar();
+});
+document.querySelectorAll('#periodos .chip').forEach((c) => c.onclick = () => { periodo = c.dataset.p; marcar('#periodos', c); desenharResumo(); });
+document.querySelectorAll('#filtros .chip').forEach((c) => c.onclick = () => { filtro = c.dataset.f; marcar('#filtros', c); desenharLog(); });
+function marcar(grupo, el) { document.querySelectorAll(grupo + ' .chip').forEach((x) => x.classList.toggle('on', x === el)); }
+
+let carregando = null, deNovo = false;
+async function carregar() {
+  if (carregando) { deNovo = true; return carregando; }
+  carregando = (async () => {
+    do {
+      deNovo = false;
+      try { dados = await api('painel', { dias: 30 }); desenharTudo(); }
+      catch (e) { if (token) toast(e.message); }
+    } while (deNovo);
+  })();
+  try { await carregando; } finally { carregando = null; }
+}
+
+function desenharTudo() {
+  const c = dados.config;
+  const avisos = [];
+  if (!dados.banco) avisos.push(`<div class="note warn"><b>Banco de dados desligado.</b> Sem ele os números não são guardados. Na Vercel: Storage → Upstash for Redis → conectar ao projeto → Redeploy.</div>`);
+  if (!c.temToken) avisos.push(`<div class="note">Falta conectar o Instagram. Abra a aba <a href="#" onclick="ir('conexao');return false"><b>Conexão</b></a>.</div>`);
+  if (dados.aviso) avisos.push(`<div class="note err">${esc(dados.aviso)}</div>`);
+  $('#avisos').innerHTML = avisos.join('');
+
+  const pill = $('#pillConta');
+  const conta = c.igUsername;
+  pill.className = 'pill ' + (c.temToken ? 'ok' : 'warn');
+  pill.textContent = c.temToken ? (conta ? '@' + conta : 'conectado') : 'não conectado';
+
+  desenharResumo(); desenharLog(); preencherForms();
+}
+function ir(tab) { document.querySelector(`nav button[data-tab="${tab}"]`).click(); }
+
+function somar(lista) {
+  const t = { comentarios: 0, pedidos: 0, enviados: 0, falhas: 0, directs: 0, responderam: 0 };
+  for (const d of lista) for (const k in t) t[k] += d[k] || 0;
+  return t;
+}
+function desenharResumo() {
+  if (!dados) return;
+  const s = dados.stats;
+  if (!s) { ['kRec', 'kPed', 'kEnv', 'kResp'].forEach((id) => $('#' + id).textContent = '—'); $('#grafico').innerHTML = ''; $('#posts').innerHTML = '<div class="empty">Conecte o banco de dados para ver os números.</div>'; return; }
+  const t = periodo === 'total' ? s.total : somar(s.porDia.slice(-Number(periodo)));
+  $('#kRec').textContent = num(t.comentarios + t.directs);
+  $('#kRecSub').textContent = `${num(t.comentarios)} comentários · ${num(t.directs)} directs`;
+  $('#kPed').textContent = num(t.pedidos);
+  $('#kPedSub').textContent = t.comentarios ? `${pct(t.pedidos, t.comentarios + t.directs)} do que chegou` : '—';
+  $('#kEnv').textContent = num(t.enviados);
+  $('#kEnvSub').textContent = t.falhas ? `${num(t.falhas)} com falha` : 'nenhuma falha';
+  $('#kResp').textContent = num(t.responderam);
+  $('#kRespSub').textContent = `${pct(t.responderam, t.enviados)} de quem recebeu`;
+
+  const max = Math.max(1, ...s.porDia.map((d) => d.enviados));
+  $('#grafico').innerHTML = s.porDia.map((d) => {
+    const [a, m, dd] = d.dia.split('-');
+    return `<div class="bar" title="${dd}/${m}: ${d.enviados} enviados, ${d.responderam} responderam"><i style="height:${(d.enviados / max) * 100}%"></i><b style="height:${(d.responderam / max) * 100}%"></b></div>`;
+  }).join('');
+  const ini = s.porDia[0]?.dia.split('-'); $('#eixoIni').textContent = ini ? `${ini[2]}/${ini[1]}` : '';
+
+  $('#posts').innerHTML = s.posts.length ? s.posts.map((p, i) => `
+    <div class="row"><div class="ic">${i + 1}</div>
+      <div class="tx"><div class="tt">${p.permalink ? `<a href="${esc(p.permalink)}" target="_blank" rel="noopener">Ver post</a>` : 'Post ' + esc(p.id)}</div>
+        <div class="ds">${esc(p.link || '')}</div></div>
+      <div class="n">${num(p.enviados)}</div></div>`).join('')
+    : '<div class="empty">Ainda nenhum link enviado. Quando alguém comentar "quero", aparece aqui.</div>';
+}
+
+const TIPOS = {
+  enviado: { ic: '📩', t: (e) => `Link enviado para ${quem(e)}` },
+  respondeu: { ic: '💬', t: (e) => `${quem(e, true)} respondeu no direct` },
+  falha: { ic: '⚠️', t: (e) => `Falha ao responder ${quem(e)}` },
+};
+function quem(e, cap) { const s = e.user ? (/^\d+$|^IGSID/i.test(e.user) ? 'alguém pelo direct' : '@' + e.user) : 'alguém'; return cap ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+function quando(t) {
+  const d = (Date.now() - t) / 1000;
+  if (d < 60) return 'agora'; if (d < 3600) return Math.floor(d / 60) + ' min'; if (d < 86400) return Math.floor(d / 3600) + ' h';
+  return new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+function desenharLog() {
+  if (!dados) return;
+  const log = (dados.stats?.log || []).filter((e) => !filtro || e.tipo === filtro);
+  $('#log').innerHTML = log.length ? log.map((e) => {
+    const T = TIPOS[e.tipo] || { ic: '•', t: () => e.tipo };
+    const det = e.tipo === 'falha' ? esc(e.erro) : [e.texto ? `“${esc(e.texto)}”` : '', e.link ? esc(e.link) : ''].filter(Boolean).join(' · ');
+    return `<div class="row"><div class="ic">${T.ic}</div><div class="tx"><div class="tt">${esc(T.t(e))}</div><div class="ds">${det} <span style="opacity:.8">· ${esc(e.origem || '')}</span></div></div><div class="tm">${quando(e.t)}</div></div>`;
+  }).join('') : '<div class="empty">Nada por aqui ainda.</div>';
+}
+
+function preencherForms() {
+  const c = dados.config;
+  $('#cToken').placeholder = c.temToken ? `atual: ${c.token} (deixe vazio para manter)` : 'cole o token aqui';
+  $('#cSecret').placeholder = c.temAppSecret ? `atual: ${c.appSecret} (deixe vazio para manter)` : 'cole a chave secreta';
+  $('#cId').value = c.igUserId || '';
+  const salvo = c.tokenSalvoEm ? new Date(Number(c.tokenSalvoEm)) : null;
+  $('#tokenInfo').innerHTML = !c.temToken ? 'O token é gerado no app da Meta (passo a passo abaixo).'
+    : c.origemToken === 'vercel' ? 'Usando o token das variáveis da Vercel. Se salvar um aqui, ele passa a valer.'
+    : salvo ? `Salvo em ${salvo.toLocaleDateString('pt-BR')}. Vale 60 dias e é renovado sozinho antes de vencer, sempre que você abre o painel.` : '';
+  $('#wUrl').value = dados.webhookUrl;
+  $('#wToken').value = c.verifyToken;
+  $('#statusConexao').innerHTML = c.temToken
+    ? `<div class="row" style="padding:0"><div class="ic">✅</div><div class="tx"><div class="tt">Instagram conectado${c.igUsername ? ' como @' + esc(c.igUsername) : ''}</div><div class="ds">Toque em <b>Testar conexão</b> para conferir a conta.</div></div></div>`
+    : `<div class="row" style="padding:0"><div class="ic">🔌</div><div class="tx"><div class="tt">Instagram não conectado</div><div class="ds">Cole o token abaixo e salve.</div></div></div>`;
+
+  if (!document.activeElement || !['mMsg', 'mPub', 'mPal'].includes(document.activeElement.id)) {
+    $('#mMsg').value = c.mensagem.replace(/\\n/g, '\n');
+    const off = c.respostaPublica.trim().toLowerCase() === 'off';
+    $('#mPubOn').checked = !off;
+    $('#mPub').value = off ? ls.get('igPubBackup') || 'Te mandei no direct! 📩' : c.respostaPublica.split('|').map((s) => s.trim()).join('\n');
+    $('#boxPub').classList.toggle('hidden', off);
+    $('#mPal').value = c.palavras;
+    $('#mDirect').checked = c.responderDirect !== 'off';
+  }
+  const u = ls.get('igUser');
+  $('#contaInfo').textContent = u ? `Conectado como ${u}.` : '';
+  $('#sNovoUser').value = u;
+}
+$('#mPubOn').onchange = () => $('#boxPub').classList.toggle('hidden', !$('#mPubOn').checked);
+
+async function salvarCampos(btn, campos, msg = 'Salvo') {
+  return ocupado(btn, async () => { const r = await api('salvar-config', campos); dados.config = r.config; preencherForms(); desenharTudo(); toast(msg); return r; });
+}
+function salvarConexao(btn) {
+  const campos = { igUserId: $('#cId').value.trim() };
+  if ($('#cToken').value.trim()) campos.token = $('#cToken').value.trim();
+  if ($('#cSecret').value.trim()) campos.appSecret = $('#cSecret').value.trim();
+  salvarCampos(btn, campos, 'Conexão salva').then((r) => { if (r) { $('#cToken').value = $('#cSecret').value = ''; if (campos.token) testar(); } });
+}
+function testar(btn) {
+  return ocupado(btn, async () => {
+    const r = await api('testar');
+    toast(r.idConfere ? `Conectado como @${r.conta.username} ✅` : `Token é da conta @${r.conta.username}, mas o ID salvo é diferente. Confira o ID.`);
+    await carregar();
+  });
+}
+function renovar(btn) { ocupado(btn, async () => { const r = await api('renovar-token'); dados.config = r.config; preencherForms(); toast(`Token renovado: vale mais ${r.expiraEmDias} dias`); }); }
+function salvarMensagens(btn) {
+  const linhas = $('#mPub').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (linhas.length) ls.set('igPubBackup', linhas.join('\n'));
+  const msg = $('#mMsg').value;
+  if (!msg.includes('{link}')) return toast('A mensagem precisa ter {link}, senão o link não vai junto.');
+  const pal = $('#mPal').value.split(',').map((s) => s.trim()).filter(Boolean);
+  if (!pal.length) return toast('Coloque pelo menos uma palavra.');
+  salvarCampos(btn, {
+    mensagem: msg,
+    respostaPublica: $('#mPubOn').checked && linhas.length ? linhas.join('|') : 'off',
+    palavras: pal.join(', '),
+    responderDirect: $('#mDirect').checked ? 'on' : 'off',
+  }, 'Mensagens salvas');
+}
+function trocarSenha(btn) {
+  ocupado(btn, async () => {
+    const r = await api('trocar-senha', { novoUsuario: $('#sNovoUser').value.trim(), senhaAtual: $('#sAtual').value, novaSenha: $('#sNova').value });
+    token = r.token; ls.set('igToken', token); ls.set('igUser', r.usuario);
+    $('#sAtual').value = $('#sNova').value = ''; toast('Usuário e senha atualizados'); preencherForms();
+  });
+}
+
+token ? abrirApp() : telaLogin();
+setInterval(() => { if (token && !document.hidden && document.querySelector('#resumo.on, #atividade.on')) carregar(); }, 60000);
+</script>
+</body>
+</html>

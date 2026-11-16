@@ -28,6 +28,11 @@ async function memCmd([c, k, ...a]) {
     case 'SADD': { if (!mem.has(k)) mem.set(k, new Set()); a.forEach((x) => mem.get(k).add(x)); return 1; }
     case 'SISMEMBER': return mem.get(k)?.has(a[0]) ? 1 : 0;
     case 'SMEMBERS': return [...(mem.get(k) || [])];
+    case 'HINCRBY': { const m = h(); const v = Number(m.get(a[0]) || 0) + Number(a[1]); m.set(a[0], String(v)); return v; }
+    case 'SCARD': return mem.get(k)?.size || 0;
+    case 'LPUSH': { if (!mem.has(k)) mem.set(k, []); mem.get(k).unshift(...a.slice().reverse()); return mem.get(k).length; }
+    case 'LTRIM': { const l = mem.get(k) || []; mem.set(k, l.slice(Number(a[0]), Number(a[1]) + 1)); return 'OK'; }
+    case 'LRANGE': { const l = mem.get(k) || []; const e = Number(a[1]); return l.slice(Number(a[0]), e < 0 ? l.length + e + 1 : e + 1); }
     case 'PING': return 'PONG';
     default: throw new Error('memória: comando não suportado ' + C);
   }
