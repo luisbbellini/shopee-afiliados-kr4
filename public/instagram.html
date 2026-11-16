@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atendente Instagram — KR4</title>
 <meta name="theme-color" content="#1d1d1b">
-<link rel="icon" href="/icon-192.png">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/instagram.webmanifest">
+<link rel="icon" href="/ig-icon-192.png">
+<link rel="apple-touch-icon" href="/ig-apple-touch.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Atendente IG">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>(function(){try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
   :root{--bg:#f6f6f4;--panel:#fff;--ink:#1c1c1a;--muted:#6b6b66;--line:#e4e3de;--soft:#efeee9;
@@ -82,6 +86,12 @@
   .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;opacity:0;transition:.2s;pointer-events:none;z-index:50;max-width:92vw;font-size:13.5px}
   .toast.on{opacity:1;transform:translateX(-50%)}
   .hidden{display:none!important}
+  .instalar{display:flex;gap:12px;align-items:center}
+  .instalar img{width:52px;height:52px;border-radius:12px;flex:none}
+  .instalar .tx{flex:1;min-width:0}
+  #login .instalar{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+  #login .instalar .b{width:auto;margin:0}
+  @media (display-mode:standalone){.so-navegador{display:none!important}}
   .two{display:grid;gap:12px} @media (min-width:760px){.two{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -110,6 +120,11 @@
       </div>
     </div>
     <button class="b p" id="btnLogin" type="submit">Entrar</button>
+    <div class="instalar so-navegador hidden" data-bloco-instalar>
+      <img src="/ig-icon-192.png" alt="">
+      <div class="tx"><b>Instalar como app</b><div class="hint" style="margin:2px 0 0" data-dica-instalar>Abre direto do ícone, em tela cheia.</div></div>
+      <button class="b sm" type="button" data-instalar onclick="instalar()">Instalar</button>
+    </div>
   </form>
 </div>
 
@@ -119,6 +134,7 @@
     <h1>Atendente <span>Instagram</span></h1>
     <span class="pill" id="pillConta">…</span>
     <div class="spacer"></div>
+    <button class="b sm p so-navegador hidden" data-instalar onclick="instalar()">Instalar app</button>
     <a class="b sm" href="/" title="Painel de afiliados Shopee" style="text-decoration:none">Shopee</a>
   </header>
   <nav>
@@ -240,6 +256,14 @@
 
     <!-- CONTA -->
     <section id="conta">
+      <div class="card so-navegador" style="margin-bottom:12px">
+        <div class="instalar">
+          <img src="/ig-icon-192.png" alt="">
+          <div class="tx"><b>Instalar o app no celular</b><div class="hint" style="margin:2px 0 0" data-dica-instalar>Abre direto do ícone, em tela cheia, sem barra do navegador.</div></div>
+          <button class="b sm p" type="button" onclick="instalar()">Instalar</button>
+        </div>
+        <div class="hint hidden" id="dicaIos" style="margin-top:12px">No iPhone: toque em <b>Compartilhar</b> (o quadrado com a seta, na barra do Safari) e depois em <b>Adicionar à Tela de Início</b>.</div>
+      </div>
       <div class="card">
         <div id="contaInfo" class="hint" style="margin:0 0 4px"></div>
         <div id="formSenha">
@@ -490,6 +514,35 @@ function trocarSenha(btn) {
     $('#sAtual').value = $('#sNova').value = ''; toast('Usuário e senha atualizados'); preencherForms();
   });
 }
+
+/* ---------------- INSTALAR APP ---------------- */
+let pedidoInstalar = null;
+const ehIos = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function atualizarInstalar() {
+  const pode = !instalado() && (pedidoInstalar || ehIos);
+  document.querySelectorAll('[data-instalar]').forEach((b) => b.classList.toggle('hidden', !pode));
+  document.querySelectorAll('[data-bloco-instalar]').forEach((b) => b.classList.toggle('hidden', !pode));
+  if (ehIos) document.querySelectorAll('[data-dica-instalar]').forEach((d) => d.textContent = 'No Safari: Compartilhar → Adicionar à Tela de Início.');
+}
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pedidoInstalar = e; atualizarInstalar(); });
+window.addEventListener('appinstalled', () => { pedidoInstalar = null; atualizarInstalar(); toast('App instalado ✅ Procure "Atendente IG" na tela inicial.'); });
+async function instalar() {
+  if (pedidoInstalar) {
+    pedidoInstalar.prompt();
+    const { outcome } = await pedidoInstalar.userChoice;
+    if (outcome === 'accepted') pedidoInstalar = null;
+    atualizarInstalar();
+  } else if (ehIos) {
+    ir('conta'); $('#dicaIos').classList.remove('hidden');
+    toast('Toque em Compartilhar e depois em "Adicionar à Tela de Início"');
+  } else {
+    toast('Abra o menu do navegador (⋮) e toque em "Instalar app" ou "Adicionar à tela inicial".');
+  }
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+atualizarInstalar();
+if (location.hash === '#atividade') setTimeout(() => token && ir('atividade'), 0);
 
 token ? abrirApp() : telaLogin();
 setInterval(() => { if (token && !document.hidden && document.querySelector('#resumo.on, #atividade.on')) carregar(); }, 60000);
