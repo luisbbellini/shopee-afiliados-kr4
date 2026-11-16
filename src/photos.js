@@ -84,7 +84,9 @@ export async function productPhotos(body = {}, { mock = false } = {}) {
     return { ...best, source: 'shopee' };
   }
   return {
-    photos: main, colors: [], tiers: [], blocked: true, errors,
-    note: 'A Shopee não liberou as outras fotos agora (ela costuma bloquear consultas vindas de servidores). Mostrando só a foto principal. Dica: abra o produto no app da Shopee, salve as fotos das cores e use "Usar foto do celular".',
+    photos: main, colors: [], tiers: [], blocked: true, shopeeErrors: errors,
+    note: errors.some((e) => /90309999/.test(e))
+      ? 'A Shopee bloqueia a busca automática das outras fotos (proteção contra robôs). Mostrando só a foto principal. Salve as fotos das cores pelo app da Shopee e toque em "Importar fotos do celular".'
+      : 'A Shopee não liberou as outras fotos agora. Mostrando só a foto principal. Salve as fotos das cores pelo app da Shopee e toque em "Importar fotos do celular".',
   };
 }

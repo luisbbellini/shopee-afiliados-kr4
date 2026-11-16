@@ -332,15 +332,44 @@ async function openPhotos(item) {
   phList = r.photos || [];
   const cores = phList.filter((p) => p.group === 'cor'), fotos = phList.filter((p) => p.group !== 'cor');
   const tiers = (r.tiers || []).map((t) => `<b>${esc(t.name || 'Opções')}:</b> ${esc(t.options.join(', '))}`).join(' · ');
-  $('#phInfo').innerHTML = (r.blocked && r.errors?.length ? `<div style="font-size:13px;margin-bottom:6px">Resposta da Shopee: ${esc(r.errors.join(' | '))}</div>` : '') + (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
+  $('#phInfo').innerHTML = (r.blocked && r.shopeeErrors?.length ? `<div style="font-size:13px;margin-bottom:6px">Resposta da Shopee: ${esc(r.shopeeErrors.join(' | '))}</div>` : '') + (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
     `${cores.length ? `${cores.length} cor(es) com foto` : 'Nenhuma cor com foto própria'} · ${fotos.length} foto(s) do anúncio${tiers ? `<br>${tiers}` : ''}`;
-  if (phList.length) $('#phActs').innerHTML = `<button class="b sm p" id="phAll" onclick="photosDownloadAll()">Baixar todas (${phList.length})</button><button class="b sm" onclick="photosDownloadEach()">Baixar uma por uma</button>`;
+  $('#phActs').innerHTML = (phList.length > 1 ? `<button class="b sm p" id="phAll" onclick="photosDownloadAll()">Baixar todas (${phList.length})</button><button class="b sm" onclick="photosDownloadEach()">Baixar uma por uma</button>` : '')
+    + `<div class="f" style="flex:1;min-width:140px"><label for="phColor">Cor das fotos (opcional)</label><input id="phColor" placeholder="ex: Azul"></div>
+       <label class="b sm ${phList.length > 1 ? '' : 'p'}" style="cursor:pointer;align-self:flex-end">Importar fotos do celular<input type="file" accept="image/*" multiple hidden onchange="photosImport(this)"></label>`;
   const grid = (title, arr) => arr.length ? `<h3 class="gridtitle">${title}</h3><div class="imggrid">${arr.map((p) => {
     const i = phList.indexOf(p);
     return `<div class="phcard"><img src="${esc(p.url)}" alt="${esc(p.label)}" loading="lazy"><div class="lb">${esc(p.label)}</div>
-      <div class="acts"><button class="b sm" onclick="photoDownload(${i})">Baixar</button><button class="b sm" onclick="photoEdit(${i})">Editar com IA</button></div></div>`;
+      <div class="acts"><button class="b sm" onclick="photoDownload(${i})">Baixar</button><button class="b sm" onclick="photoEdit(${i})">Editar (IA)</button></div></div>`;
   }).join('')}</div>` : '';
-  $('#phOut').innerHTML = grid('Cores', cores) + grid('Fotos do anúncio', fotos) || '<div class="meta">Nenhuma foto encontrada.</div>';
+  $('#phOut').innerHTML = (grid('Cores', cores) + grid('Fotos do anúncio', fotos) || '<div class="meta">Nenhuma foto encontrada.</div>') + '<div id="phImported"></div>';
+  showImported();
+}
+// fotos que ela salvou do app da Shopee e importou: ficam no aparelho junto com o produto
+async function showImported() {
+  const box = $('#phImported'); if (!box || !phItem) return;
+  const list = (await imgDbList(String(phItem.itemId || ''))).filter((x) => x.model === 'importada');
+  box.innerHTML = '';
+  if (!list.length) return;
+  const h = document.createElement('h3'); h.className = 'gridtitle'; h.textContent = `Importadas do celular (${list.length})`;
+  const g = document.createElement('div'); g.className = 'imggrid';
+  g.append(...list.map((rec) => imgCard(rec)));
+  box.append(h, g);
+}
+async function photosImport(input) {
+  const files = [...(input.files || [])]; input.value = ''; if (!files.length) return;
+  const cor = ($('#phColor')?.value || '').trim();
+  let n = 0;
+  for (const f of files) {
+    try {
+      await imgDbAdd({ itemId: String(phItem.itemId || ''), productName: phItem.productName || '', productLink: phItem.productLink || '',
+        prompt: cor ? `Foto importada · cor ${cor}` : 'Foto importada', aspect: '', model: 'importada', createdAt: Date.now() + n, blob: f });
+      n++;
+    } catch {}
+  }
+  toast(`${n} foto(s) guardada(s) no app`);
+  if (typeof refreshGalleryCounts === 'function') refreshGalleryCounts();
+  showImported();
 }
 function closePhotos() { $('#phModal').classList.remove('on'); $('#phShade').classList.remove('on'); }
 const photoName = (p) => `${phItem?.productName || 'produto'} ${p.group === 'cor' ? 'cor ' : ''}${p.label}`;
@@ -378,6 +407,7 @@ async function imgUseLocal(input) {
 let imgItem = null, imgSource = null; // imgSource: { url } da Shopee ou { b64 } de uma imagem já editada
 function openImgEdit(item) {
   if (!item?.imageUrl) return toast('Produto sem foto');
+  if ($('#phModal')?.classList.contains('on')) closePhotos();
   buildImgPresets();
   imgItem = item; imgSource = { url: item.imageUrl };
   $('#imgSrc').src = item.imageUrl; $('#imgSrcLabel').textContent = 'Foto original do produto';
@@ -538,7 +568,7 @@ function imgCard(rec, { inModal = false } = {}) {
   el.querySelector('[data-a=edit]').addEventListener('click', async () => {
     if (!inModal) { const prod = FAV.get(rec.itemId) || { itemId: rec.itemId, productName: rec.productName, productLink: rec.productLink, imageUrl: 'x' }; openImgEdit(prod); }
     imgSource = { b64: await blobToSmallDataURL(rec.blob) };
-    $('#imgSrc').src = url; $('#imgSrcLabel').textContent = 'Editando a imagem gerada'; $('#imgPrompt').value = ''; resetImgPresets();
+    $('#imgSrc').src = url; $('#imgSrcLabel').textContent = rec.model === 'importada' ? rec.prompt : 'Editando a imagem gerada'; $('#imgPrompt').value = ''; resetImgPresets();
     $('#imgModal').scrollTop = 0; toast('Agora as mudanças valem sobre esta imagem');
   });
   el.querySelector('[data-a=del]').addEventListener('click', async () => {
