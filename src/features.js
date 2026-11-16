@@ -138,6 +138,16 @@ export async function dailyJob(client, key, { panelUrl, budgetMs = 45000 } = {})
 }
 
 /* ---------------- roteiro com IA (ChatGPT, Claude ou Gemini) ---------------- */
+// Regras fixas que vão junto de TODO prompt enviado ao Grok (vídeo a partir da foto).
+export const GROK_RULES = `REGRAS OBRIGATÓRIAS (não desrespeite nenhuma):
+- Use SOMENTE a imagem enviada como base. Não crie uma cena nova.
+- NÃO adicione nem remova pessoas, objetos, acessórios, animais, textos, legendas, logotipos, marcas d'água ou efeitos.
+- NÃO altere o produto: mantenha exatamente a mesma cor, modelagem, comprimento, estampa, tecido, textura, botões, costuras e detalhes.
+- NÃO invente características, partes ou detalhes que não aparecem na foto (bolsos, zíper, brilho, renda, etc.).
+- NÃO mude o rosto, o corpo, o cabelo ou a maquiagem da pessoa, nem o cenário ou o fundo.
+- Apenas dê movimento sutil e realista ao que já existe: câmera lenta e suave, leve movimento da pessoa e do tecido, luz natural.
+- Sem fala, sem música e sem nenhum texto na tela.`;
+
 // Tipos de vídeo
 const FORMATS = {
   narracao: 'NARRAÇÃO (voz em off): ninguém aparece falando; uma voz narra por cima de imagens do produto (mãos, detalhes, peça vestida). Texto em terceira pessoa ou falando direto com quem assiste ("você"), nunca "eu".',
@@ -211,7 +221,9 @@ Loja: ${p.shopName || '?'}
 ${extra ? 'Observações da criadora: ' + extra : ''}
 
 Responda SOMENTE com JSON válido neste formato:
-{"gancho":"frase dos 3 primeiros segundos","cenas":[{"tempo":"0-3s","fala":"${format === 'texto' ? '' : (format === 'narracao' ? 'texto da narração (voz em off)' : 'o que a criadora fala olhando para a câmera')}","texto_tela":"texto curto que aparece escrito na tela","imagem":"o que mostrar / como filmar"}],"cta":"chamada para comprar no link","legenda":"legenda do post","hashtags":["#..."],"musica":"sugestão de estilo de música de fundo","ideias_extra":["variação de gancho 1","variação de gancho 2"]}${format === 'texto' ? '\nNeste tipo o campo "fala" fica vazio: tudo é comunicado pelo "texto_tela" (frases curtas, fáceis de ler em 2 segundos).' : ''}`;
+{"gancho":"frase dos 3 primeiros segundos","cenas":[{"tempo":"0-3s","fala":"${format === 'texto' ? '' : (format === 'narracao' ? 'texto da narração (voz em off)' : 'o que a criadora fala olhando para a câmera')}","texto_tela":"texto curto que aparece escrito na tela","imagem":"o que mostrar / como filmar","prompt_grok":"prompt para o Grok animar a FOTO DO PRODUTO nesta cena"}],"cta":"chamada para comprar no link","legenda":"legenda do post","hashtags":["#..."],"musica":"sugestão de estilo de música de fundo","ideias_extra":["variação de gancho 1","variação de gancho 2"]}${format === 'texto' ? '\nNeste tipo o campo "fala" fica vazio: tudo é comunicado pelo "texto_tela" (frases curtas, fáceis de ler em 2 segundos).' : ''}
+
+SOBRE "prompt_grok": as imagens das cenas serão geradas no Grok (Grok Imagine), que transforma a FOTO DO PRODUTO em um vídeo curto (5 a 8 segundos). Para cada cena, escreva 1 ou 2 frases descrevendo SOMENTE o movimento: da câmera (aproximar devagar, girar levemente, subir/descer), da pessoa (respirar, virar levemente, dar um passo) e do tecido (balançar com o vento), e a luz. NUNCA peça para adicionar ou mudar objetos, pessoas, cenário, cores, texto ou detalhes do produto; o Grok deve só animar o que já está na foto. Exemplo bom: "câmera se aproxima lentamente do vestido enquanto o tecido balança levemente com a brisa". Exemplo ruim: "a modelo segura uma bolsa dourada na praia".${format === 'primeira_pessoa' ? ' Se a cena for a criadora falando para a câmera (filmada por ela mesma), deixe "prompt_grok" vazio.' : ''}`;
 
   const models = ai.model ? [ai.model] : MODELS[provider];
   let last;
@@ -220,7 +232,7 @@ Responda SOMENTE com JSON válido neste formato:
     if (last.ok) {
       const m = last.text.match(/\{[\s\S]*\}/);
       let script; try { script = JSON.parse(m ? m[0] : last.text); } catch { script = { texto: last.text }; }
-      return { ...script, _ia: `${NAMES[provider]} · ${model}`, _formato: format };
+      return { ...script, grok_regras: GROK_RULES, _ia: `${NAMES[provider]} · ${model}`, _formato: format };
     }
     if (!modelMissing(last.status, last.error) || ai.model) break;
   }

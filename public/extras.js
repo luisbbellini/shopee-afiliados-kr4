@@ -181,12 +181,12 @@ function openScript(idOrObj) {
 function closeScript() { $('#scModal').classList.remove('on'); $('#scShade').classList.remove('on'); }
 function scriptText(s) {
   if (s.texto && !s.cenas) return s.texto;
-  return [`${FORMAT_LABEL[s._formato] ? 'TIPO: ' + FORMAT_LABEL[s._formato] + '\n' : ''}GANCHO: ${s.gancho || ''}`, '', ...(s.cenas || []).map((c) => `[${c.tempo}]${c.fala ? ' ' + c.fala : ''}${c.texto_tela ? `  [tela: ${c.texto_tela}]` : ''}${c.imagem ? `  (${c.imagem})` : ''}`), '', `CTA: ${s.cta || ''}`, s.musica ? `MÚSICA: ${s.musica}` : '', '', `LEGENDA: ${s.legenda || ''}`, (s.hashtags || []).join(' ')].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
+  return [`${FORMAT_LABEL[s._formato] ? 'TIPO: ' + FORMAT_LABEL[s._formato] + '\n' : ''}GANCHO: ${s.gancho || ''}`, '', ...(s.cenas || []).map((c) => `[${c.tempo}]${c.fala ? ' ' + c.fala : ''}${c.texto_tela ? `  [tela: ${c.texto_tela}]` : ''}${c.imagem ? `  (${c.imagem})` : ''}${c.prompt_grok ? `\n   Grok: ${c.prompt_grok}` : ''}`), '', `CTA: ${s.cta || ''}`, s.musica ? `MÚSICA: ${s.musica}` : '', '', `LEGENDA: ${s.legenda || ''}`, (s.hashtags || []).join(' ')].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 }
 // Roteiro editável: cada parte é um campo de texto; as mudanças ficam salvas no produto da lista.
 function renderScript(s) {
   if (s.texto && !s.cenas) s = { gancho: '', cenas: [{ tempo: '', fala: s.texto, texto_tela: '', imagem: '' }], cta: '', legenda: '', hashtags: [], _formato: s._formato, _ia: s._ia };
-  s.cenas ||= []; s.hashtags ||= [];
+  s.cenas ||= []; s.hashtags ||= []; if (!s.grok_regras) s.grok_regras = GROK_RULES_DEFAULT;
   window._lastScript = s;
   const fmt = s._formato;
   const falaLbl = fmt === 'primeira_pessoa' ? 'Fala' : fmt === 'texto' ? 'Fala (opcional)' : 'Narração';
@@ -208,8 +208,14 @@ function renderScript(s) {
         <span class="lbl">${falaLbl}</span>${ta(`cenas.${i}.fala`, c.fala, 2)}
         <span class="lbl">Texto na tela</span>${ta(`cenas.${i}.texto_tela`, c.texto_tela, 1)}
         <span class="lbl">${fazerLbl}</span>${ta(`cenas.${i}.imagem`, c.imagem, 1)}
+        <span class="lbl grok">Prompt para o Grok (vídeo a partir da foto)</span>${ta(`cenas.${i}.prompt_grok`, c.prompt_grok, 2, fmt === 'primeira_pessoa' ? 'Vazio = cena filmada por você' : 'ex: câmera se aproxima devagar enquanto o tecido balança')}
+        ${c.prompt_grok ? `<button class="b sm" onclick="copyGrok(${i})">Copiar para o Grok</button>` : ''}
       </li>`).join('')}</ol>
       <button class="b sm" onclick="scAddScene()">+ Adicionar cena</button></div>
+    <div class="scb grokbox"><h3>Regras para o Grok</h3>
+      <p class="meta" style="display:block;margin:0 0 6px">Vão automaticamente no fim de <b>todo</b> prompt copiado para o Grok, para ele não criar nada na imagem nem inventar detalhes. Envie ao Grok a <b>foto do produto</b> (ou uma da Galeria) junto com o prompt.</p>
+      ${ta('grok_regras', s.grok_regras, 6)}
+      <div class="acts wrap"><button class="b sm p" onclick="copyGrokAll()">Copiar todos os prompts do Grok</button><button class="b sm" onclick="resetGrokRules()">Restaurar regras padrão</button></div></div>
     <div class="scb"><h3>Música de fundo</h3>${ta('musica', s.musica, 1, 'ex: pop animado')}</div>
     <div class="scb"><h3>Chamada para comprar</h3>${ta('cta', s.cta, 2)}</div>
     <div class="scb"><h3>Legenda</h3>${ta('legenda', s.legenda, 3)}
@@ -217,6 +223,23 @@ function renderScript(s) {
       <button class="b sm" onclick="copy(window._lastScript.legenda + '\\n\\n' + (window._lastScript.hashtags||[]).join(' '))">Copiar legenda + hashtags</button></div>
     ${(s.ideias_extra || []).length ? `<div class="scb"><h3>Outros ganchos (toque para usar)</h3><ul class="alts">${s.ideias_extra.map((g, i) => `<li><button class="linklike" onclick="scUseHook(${i})">${esc(g)}</button></li>`).join('')}</ul></div>` : ''}`;
 }
+const GROK_RULES_DEFAULT = `REGRAS OBRIGATÓRIAS (não desrespeite nenhuma):
+- Use SOMENTE a imagem enviada como base. Não crie uma cena nova.
+- NÃO adicione nem remova pessoas, objetos, acessórios, animais, textos, legendas, logotipos, marcas d'água ou efeitos.
+- NÃO altere o produto: mantenha exatamente a mesma cor, modelagem, comprimento, estampa, tecido, textura, botões, costuras e detalhes.
+- NÃO invente características, partes ou detalhes que não aparecem na foto (bolsos, zíper, brilho, renda, etc.).
+- NÃO mude o rosto, o corpo, o cabelo ou a maquiagem da pessoa, nem o cenário ou o fundo.
+- Apenas dê movimento sutil e realista ao que já existe: câmera lenta e suave, leve movimento da pessoa e do tecido, luz natural.
+- Sem fala, sem música e sem nenhum texto na tela.`;
+const grokRules = () => (window._lastScript?.grok_regras || '').trim() || GROK_RULES_DEFAULT;
+const grokPrompt = (c) => `${c.prompt_grok.trim()}\n\n${grokRules()}`;
+function copyGrok(i) { const c = window._lastScript.cenas[i]; if (!c?.prompt_grok) return; copy(grokPrompt(c)); }
+function copyGrokAll() {
+  const cs = (window._lastScript.cenas || []).filter((c) => (c.prompt_grok || '').trim());
+  if (!cs.length) return toast('Nenhuma cena tem prompt para o Grok');
+  copy(cs.map((c, i) => `CENA ${i + 1} (${c.tempo || ''})\n${grokPrompt(c)}`).join('\n\n-----\n\n'));
+}
+function resetGrokRules() { window._lastScript.grok_regras = GROK_RULES_DEFAULT; window._lastScript._editado = true; scRerender(); scScheduleSave(); toast('Regras padrão restauradas'); }
 function scAutoGrow(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
 function scEdit(el) {
   const s = window._lastScript; const path = el.dataset.path.split('.');
