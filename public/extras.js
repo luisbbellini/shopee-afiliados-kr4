@@ -305,35 +305,15 @@ async function genScript() {
 }
 
 /* ---------------- fotos e cores do produto ---------------- */
-async function apiSignal(path, signal, body) {
-  const r = await fetch('/api/' + path, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-panel-key': getKey(), ...credHeaders() }, body: JSON.stringify(body) });
-  const txt = await r.text();
-  try { return JSON.parse(txt); } catch { return { errors: [{ message: `Servidor respondeu ${r.status}: ${txt.slice(0, 80)}` }] }; }
-}
 let phItem = null, phList = [];
-const PH_CACHE = new Map();
 async function openPhotos(item) {
   if (!item) return;
   if ($('#imgModal').classList.contains('on')) closeImgEdit();
   phItem = item; $('#phTitle').textContent = 'Fotos e cores · ' + (item.productName || '').slice(0, 40);
-  $('#phOut').innerHTML = '<div class="note">Buscando as fotos e cores na Shopee… pode levar alguns segundos.</div>'; $('#phActs').innerHTML = ''; $('#phInfo').textContent = '';
   $('#phModal').classList.add('on'); $('#phShade').classList.add('on');
-  const key = String(item.itemId || item.productLink || '');
-  let r = PH_CACHE.get(key);
-  if (!r) {
-    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 25000);
-    try { r = await apiSignal('product-photos', ctl.signal, { itemId: item.itemId, shopId: item.shopId, productLink: item.productLink, offerLink: item.offerLink, imageUrl: item.imageUrl }); }
-    catch (e) { r = { errors: [{ message: (e.name === 'AbortError' ? 'A busca passou de 25 segundos. ' : 'Falha na busca (' + e.message + '). ') + 'A busca demorou demais ou falhou. Tente de novo; se continuar, salve as fotos pelo app da Shopee e use "Usar foto do celular" na edição.' }] }; }
-    clearTimeout(tm);
-    if (phItem !== item) return;
-    if (r.errors) { $('#phOut').innerHTML = `<p style="color:var(--err);font-size:14px;margin:0 0 10px">${esc(r.errors[0].message || JSON.stringify(r.errors[0]))}</p>${item.imageUrl ? `<button class="b sm" onclick="downloadPhoto('${esc(item.imageUrl)}','${esc(item.productName || 'produto')}')">Baixar a foto principal</button>` : ''}`; return; }
-    if (!r.blocked) PH_CACHE.set(key, r);
-  }
-  phList = r.photos || [];
-  const cores = phList.filter((p) => p.group === 'cor'), fotos = phList.filter((p) => p.group !== 'cor');
-  const tiers = (r.tiers || []).map((t) => `<b>${esc(t.name || 'Opções')}:</b> ${esc(t.options.join(', '))}`).join(' · ');
-  $('#phInfo').innerHTML = (r.blocked && r.shopeeErrors?.length ? `<div style="font-size:13px;margin-bottom:6px">Resposta da Shopee: ${esc(r.shopeeErrors.join(' | '))}</div>` : '') + (r.note ? `<div class="note">${esc(r.note)}</div>` : '') +
-    `${cores.length ? `${cores.length} cor(es) com foto` : 'Nenhuma cor com foto própria'} · ${fotos.length} foto(s) do anúncio${tiers ? `<br>${tiers}` : ''}`;
+  phList = item.imageUrl ? [{ url: item.imageUrl, label: 'Foto principal', group: 'foto' }] : [];
+  $('#phInfo').innerHTML = '<div class="note">Salve as fotos de cada cor pelo app da Shopee, escreva a cor e toque em <b>Importar fotos do celular</b>. Elas ficam guardadas aqui, junto com o produto.</div>';
+  const cores = [], fotos = phList;
   $('#phActs').innerHTML = (phList.length > 1 ? `<button class="b sm p" id="phAll" onclick="photosDownloadAll()">Baixar todas (${phList.length})</button><button class="b sm" onclick="photosDownloadEach()">Baixar uma por uma</button>` : '')
     + `<div class="f" style="flex:1;min-width:140px"><label for="phColor">Cor das fotos (opcional)</label><input id="phColor" placeholder="ex: Azul"></div>
        <label class="b sm ${phList.length > 1 ? '' : 'p'}" style="cursor:pointer;align-self:flex-end">Importar fotos do celular<input type="file" accept="image/*" multiple hidden onchange="photosImport(this)"></label>`;
@@ -342,7 +322,7 @@ async function openPhotos(item) {
     return `<div class="phcard"><img src="${esc(p.url)}" alt="${esc(p.label)}" loading="lazy"><div class="lb">${esc(p.label)}</div>
       <div class="acts"><button class="b sm" onclick="photoDownload(${i})">Baixar</button><button class="b sm" onclick="photoEdit(${i})">Editar (IA)</button></div></div>`;
   }).join('')}</div>` : '';
-  $('#phOut').innerHTML = (grid('Cores', cores) + grid('Fotos do anúncio', fotos) || '<div class="meta">Nenhuma foto encontrada.</div>') + '<div id="phImported"></div>';
+  $('#phOut').innerHTML = (grid('Cores', cores) + grid('Foto principal do anúncio', fotos) || '<div class="meta">Nenhuma foto encontrada.</div>') + '<div id="phImported"></div>';
   showImported();
 }
 // fotos que ela salvou do app da Shopee e importou: ficam no aparelho junto com o produto
