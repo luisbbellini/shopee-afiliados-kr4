@@ -54,6 +54,8 @@
   button:disabled{opacity:.5;cursor:wait}
   .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
   .bar .info{color:var(--muted);font-size:13px}
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0}
+  .pager .b[disabled]{opacity:.4}
   .note{font-size:12.5px;padding:8px 12px;border-radius:8px;margin-bottom:12px;background:var(--soft);color:var(--muted)}
   .note.err{color:var(--err)} .note.warn{color:var(--warn)}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
@@ -862,22 +864,29 @@ function render(tab) {
   let rows = r.nodes.filter((n) => !f || JSON.stringify(n).toLowerCase().includes(f));
   if (r.sort) rows = sortRows(rows, r.sort);
   const pi = r.pageInfo;
+  const curPage = +(pi?.page ?? $(`#${tab} form`)?.elements.page?.value ?? 1) || 1;
+  const pager = (pi && (curPage > 1 || pi.hasNextPage)) ? `<div class="pager">
+      <button class="b sm" onclick="goPage('${tab}',-1)" ${curPage > 1 ? '' : 'disabled'}>← Página anterior</button>
+      <span class="info">Página ${curPage}</span>
+      <button class="b sm" onclick="goPage('${tab}',1)" ${pi.hasNextPage ? '' : 'disabled'}>Próxima página →</button></div>` : '';
   out.innerHTML = notes(r) + `
     <div class="bar">
       <span class="info">${int(rows.length)} de ${int(r.nodes.length)} itens${r.pages ? ` · ${r.pages} página(s)` : ''}${pi ? ` · página ${pi.page ?? '—'}${pi.hasNextPage ? ' · tem mais' : ''}` : ''}${r.cached ? ' · cache' : ''} · ${r.ms ?? 0} ms</span>
       <span class="spacer" style="flex:1"></span>
       <input placeholder="Filtrar resultados…" value="${esc(r.filter)}" oninput="state.${tab}.filter=this.value;render('${tab}');this.focus();this.setSelectionRange(this.value.length,this.value.length)" style="width:200px">
       ${tab === 'products' ? `<button class="b sm" onclick="state.${tab}.view=state.${tab}.view==='cards'?'table':'cards';render('${tab}')">${r.view === 'cards' ? 'Ver tabela' : 'Ver cards'}</button>` : ''}
-      ${pi?.hasNextPage ? `<button class="b sm" onclick="nextPage('${tab}')">Próxima página →</button>` : ''}
       <button class="b sm" onclick="download('${tab}.csv',toCSV(state.${tab}.nodes),'text/csv')">CSV</button>
       <button class="b sm" onclick="download('${tab}.json',JSON.stringify(state.${tab}.nodes,null,2),'application/json')">JSON</button>
-    </div>` + (rows.length ? (tab === 'products' && r.view === 'cards' ? productCards(rows) : table(tab, rows)) : '<div class="empty">Nenhum resultado.</div>');
+    </div>` + pager + (rows.length ? (tab === 'products' && r.view === 'cards' ? productCards(rows) : table(tab, rows)) : '<div class="empty">Nenhum resultado.</div>') + pager;
 }
 
-function nextPage(tab) {
-  const form = $(`#${tab} form`); const p = form.elements.page; p.value = (+p.value || 1) + 1;
+function goPage(tab, delta) {
+  const form = $(`#${tab} form`); const p = form.elements.page;
+  p.value = Math.max(1, (+p.value || 1) + delta);
   form.requestSubmit();
+  form.scrollIntoView({ behavior: 'smooth', block: 'end' }); // volta para o começo dos resultados
 }
+const nextPage = (tab) => goPage(tab, 1);
 
 function productCards(rows) {
   return '<div class="grid">' + rows.map((n, i) => `
