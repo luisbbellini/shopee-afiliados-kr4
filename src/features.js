@@ -176,9 +176,13 @@ async function callAI(provider, apiKey, model, prompt) {
   try { return await callAIRaw(provider, apiKey, model, prompt); }
   catch (e) { throw new Error(`${NAMES[provider]}: não consegui conectar à IA (${e.message}). Tente de novo em instantes.`); }
 }
+// prompt pode ser texto ou { text, images: [{ mime, data(base64) }] } para ler prints
 async function callAIRaw(provider, apiKey, model, prompt) {
+  const imgs = typeof prompt === 'object' ? prompt.images || [] : [];
+  if (typeof prompt === 'object') prompt = prompt.text;
   if (provider === 'openai') {
-    const body = { model, messages: [{ role: 'system', content: 'Responda somente com JSON válido.' }, { role: 'user', content: prompt }], response_format: { type: 'json_object' } };
+    const content = imgs.length ? [{ type: 'text', text: prompt }, ...imgs.map((i) => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data}`, detail: 'high' } }))] : prompt;
+    const body = { model, messages: [{ role: 'system', content: 'Responda somente com JSON válido.' }, { role: 'user', content }], response_format: { type: 'json_object' } };
     let r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     let j = await r.json().catch(() => ({}));
     if (r.status === 400 && /response_format/i.test(j.error?.message || '')) { // modelo sem modo JSON
@@ -189,12 +193,12 @@ async function callAIRaw(provider, apiKey, model, prompt) {
     return { ok: r.ok, status: r.status, error: j.error?.message, text: j.choices?.[0]?.message?.content || '' };
   }
   if (provider === 'anthropic') {
-    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify({ model, max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }) });
+    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify({ model, max_tokens: imgs.length ? 4000 : 1500, messages: [{ role: 'user', content: imgs.length ? [...imgs.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.data } })), { type: 'text', text: prompt }] : prompt }] }) });
     const j = await r.json().catch(() => ({}));
     return { ok: r.ok, status: r.status, error: j.error?.message, text: (j.content || []).map((c) => c.text || '').join('') };
   }
   if (provider === 'gemini') {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } }) });
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }, ...imgs.map((i) => ({ inline_data: { mime_type: i.mime, data: i.data } }))] }], generationConfig: { responseMimeType: 'application/json' } }) });
     const j = await r.json().catch(() => ({}));
     return { ok: r.ok, status: r.status, error: j.error?.message, text: (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('') };
   }
@@ -418,6 +422,36 @@ Responda SOMENTE com JSON válido, em português do Brasil, frases curtas e prá
       const m = last.text.match(/\{[\s\S]*\}/);
       let out; try { out = JSON.parse(m ? m[0] : last.text); } catch { out = { resumo: last.text }; }
       return { ...out, _ia: `${NAMES[provider]} · ${model}` };
+    }
+    if (!modelMissing(last.status, last.error) || ai.model) break;
+  }
+  const hint = last.status === 401 ? ' (chave inválida)' : last.status === 429 ? ' (sem créditos ou limite atingido)' : '';
+  throw new Error(`${NAMES[provider]}: ${last.error || 'HTTP ' + last.status}${hint}`);
+}
+
+// Lê prints do painel do criador do Shopee Vídeo e devolve os números de cada vídeo.
+export async function videoOCR({ images = [], known = [] } = {}, ai = {}) {
+  const apiKey = String(ai.key || '').trim();
+  if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (ChatGPT, Claude ou Gemini).');
+  const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
+  if (!provider) throw new Error('Não reconheci a chave. Escolha a empresa da IA em ⚙ Configurações.');
+  const imgs = images.slice(0, 4).map((u) => { const m = String(u).match(/^data:(image\/[a-z+]+);base64,(.+)$/); return m ? { mime: m[1], data: m[2] } : null; }).filter(Boolean);
+  if (!imgs.length) throw new Error('Envie pelo menos um print.');
+  const text = `As imagens são prints do painel do criador do Shopee Vídeo (ou da tela de um vídeo) de uma afiliada no Brasil.
+Extraia os números de CADA vídeo que aparece. Leia exatamente o que está escrito; não invente. Se um número não aparece, use null.
+Converta abreviações: "1,2 mil" ou "1.2K" = 1200; "3,4 mi" = 3400000. Datas no formato AAAA-MM-DD quando der para ler (ano atual: ${new Date().getFullYear()}).
+Para ajudar a identificar, estes são os vídeos que ela já registrou (id, produto, gancho, data de postagem):
+${JSON.stringify(known.slice(0, 80))}
+Se um vídeo do print corresponder claramente a um deles (mesmo produto/título e data próxima), coloque o id em "match_id"; senão null.
+Responda SOMENTE com JSON: {"videos":[{"titulo":"texto do título/legenda como aparece","produto":"nome do produto se aparecer","data":"AAAA-MM-DD ou null","visualizacoes":0,"curtidas":0,"comentarios":0,"compartilhamentos":0,"cliques":0,"pedidos":0,"vendas_reais":0,"match_id":null}],"observacao":"o que não deu para ler, se algo"}`;
+  const models = ai.model ? [ai.model] : MODELS[provider];
+  let last;
+  for (const model of models) {
+    last = await callAI(provider, apiKey, model, { text, images: imgs });
+    if (last.ok) {
+      const m = last.text.match(/\{[\s\S]*\}/);
+      let out; try { out = JSON.parse(m ? m[0] : last.text); } catch { throw new Error('A IA não conseguiu ler o print. Tente um print mais nítido.'); }
+      return { videos: Array.isArray(out.videos) ? out.videos : [], observacao: out.observacao || '', _ia: `${NAMES[provider]} · ${model}` };
     }
     if (!modelMissing(last.status, last.error) || ai.model) break;
   }

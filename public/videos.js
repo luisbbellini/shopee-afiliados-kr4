@@ -5,7 +5,7 @@
 const VD_FORMATS = { narracao: 'Narração', primeira_pessoa: 'Primeira pessoa', texto: 'Só texto', outro: 'Outro' };
 const VD_NUMS = [['views', 'Visualizações'], ['likes', 'Curtidas'], ['comments', 'Comentários'], ['shares', 'Compartilhamentos'], ['clicks', 'Cliques no produto'], ['orders', 'Pedidos']];
 const VD_WEEK = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-const VD = { conv: null, convAt: 0, sort: 'commission', period: '30', ai: null };
+const VD = { conv: null, convAt: 0, sort: 'commission', period: '90', ai: null, pending: [] };
 let vdItemId = null;
 
 const vdNum = (v) => { const n = +String(v ?? '').replace(/\./g, '').replace(',', '.'); return isFinite(n) && n > 0 ? n : 0; };
@@ -62,7 +62,76 @@ function vdRenderModal() {
 }
 // ao marcar "Postado", já abre o cadastro do vídeo
 function vdOnStatus(itemId, status) {
-  if (status === 'postado' && !vdList(itemId).length) setTimeout(() => openVideos(itemId, true), 300);
+  if (status !== 'postado' || vdList(itemId).length) return;
+  setTimeout(async () => { vdItemId = String(itemId); vdAdd(true); toast('Vídeo registrado. Depois é só mandar o print dos números na aba Vídeos.'); }, 300);
+}
+// produtos já marcados como Postado antes desta versão ganham um vídeo automaticamente
+async function vdAutoRegister() {
+  for (const x of FAV.values()) {
+    if (x.status !== 'postado' || x.videos?.length) continue;
+    const d = new Date((x.updatedAt || Date.now()) - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const sc = x.script || {};
+    await favUpsert({ itemId: String(x.itemId), videos: [{ id: 'v' + Date.now().toString(36) + x.itemId.slice(-3), network: 'Shopee Vídeo', postedAt: d, title: sc.gancho || '', format: sc._formato || 'narracao', subId: x.subId || '', auto: true, createdAt: Date.now() }] }, true);
+  }
+}
+
+/* ---------------- prints do Shopee Vídeo: a IA lê os números ---------------- */
+const vdWords = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+function vdGuess(res) {
+  const all = vdAll();
+  if (res.match_id) { const v = all.find((x) => x.id === res.match_id); if (v) return v; }
+  const words = new Set(vdWords(`${res.titulo} ${res.produto}`)); if (!words.size) return null;
+  let best = null, bestScore = 0;
+  for (const v of all) {
+    const w = vdWords(`${v.item.productName} ${v.title}`); const hit = w.filter((x) => words.has(x)).length;
+    let sc = hit / Math.max(3, Math.min(words.size, w.length));
+    if (res.data && v.postedAt && Math.abs(new Date(res.data) - new Date(v.postedAt.slice(0, 10))) < 2 * 86400000) sc += 0.2;
+    if (sc > bestScore) { bestScore = sc; best = v; }
+  }
+  return bestScore >= 0.4 ? best : null;
+}
+async function vdApplyResult(res, video) {
+  const map = { views: res.visualizacoes, likes: res.curtidas, comments: res.comentarios, shares: res.compartilhamentos, clicks: res.cliques, orders: res.pedidos };
+  const patch = {}; for (const [k, val] of Object.entries(map)) if (val !== null && val !== undefined && val !== '') patch[k] = String(val);
+  const list = vdList(video.itemId).map((v) => (v.id === video.id ? { ...v, ...patch, title: v.title || res.titulo || '', metricsAt: Date.now() } : v));
+  await favUpsert({ itemId: video.itemId, videos: list }, true);
+}
+async function vdNewFromResult(res, itemId) {
+  const x = FAV.get(String(itemId)); if (!x) return;
+  const list = vdList(itemId);
+  const empty = list.find((v) => !vdNum(v.views)); // usa o vídeo registrado que ainda não tem números
+  if (empty) return vdApplyResult(res, { ...empty, itemId: String(itemId) });
+  list.unshift({ id: 'v' + Date.now().toString(36), network: 'Shopee Vídeo', postedAt: res.data ? res.data + 'T12:00' : vdNowLocal(), title: res.titulo || '', format: x.script?._formato || 'narracao', subId: x.subId || '', createdAt: Date.now() });
+  await favUpsert({ itemId: String(itemId), videos: list }, true);
+  await vdApplyResult(res, { ...list[0], itemId: String(itemId) });
+}
+async function vdPrints(input) {
+  const files = [...(input.files || [])].slice(0, 4); input.value = ''; if (!files.length) return;
+  const st = { set innerHTML(h) { VD.status = h; const el = $('#vdPrintStatus'); if (el) el.innerHTML = h; } }; st.innerHTML = `<div class="note">Lendo ${files.length} print(s) com IA… leva uns 20 segundos.</div>`;
+  let images;
+  try { images = await Promise.all(files.map((f) => blobToSmallDataURL(f, 1600))); } catch { st.innerHTML = '<div class="note err">Não consegui abrir as imagens.</div>'; return; }
+  const known = vdAll().map((v) => ({ id: v.id, produto: (v.item.productName || '').slice(0, 70), gancho: (v.title || '').slice(0, 70), postado: (v.postedAt || '').slice(0, 10) }));
+  const r = await api('video-ocr', { images, known });
+  if (r.errors) { st.innerHTML = `<div class="note err">${esc(r.errors[0].message)}</div>`; return; }
+  let ok = 0; VD.pending = [];
+  for (const res of r.videos || []) {
+    const v = vdGuess(res);
+    if (v) { await vdApplyResult(res, v); ok++; } else VD.pending.push(res);
+  }
+  st.innerHTML = `<div class="note">${ok} vídeo(s) atualizado(s) automaticamente${VD.pending.length ? `, ${VD.pending.length} para você confirmar abaixo` : ''}.${r.observacao ? ' ' + esc(r.observacao) : ''}</div>`;
+  await renderVideos();
+  if (ok && lsGet('aiKey')) vdAnalyze(); // análise automática depois de atualizar os números
+}
+function vdPendingHtml() {
+  if (!VD.pending.length) return '';
+  const opts = [...FAV.values()].map((x) => `<option value="${esc(x.itemId)}">${esc((x.productName || '').slice(0, 60))}</option>`).join('');
+  return `<div class="panelbox"><h3>Não reconheci estes vídeos do print</h3><p class="meta" style="display:block">Escolha de qual produto é cada um.</p>
+    ${VD.pending.map((res, i) => `<div class="vdbox"><b>${esc(res.titulo || res.produto || 'Vídeo')}</b><div class="meta" style="display:block">${res.visualizacoes ?? '—'} visualizações · ${res.curtidas ?? '—'} curtidas${res.data ? ' · ' + esc(res.data) : ''}</div>
+      <div class="bar" style="margin:6px 0 0"><select id="vdPend${i}" style="flex:1;min-width:0"><option value="">Escolha o produto…</option>${opts}</select><button class="b sm p" onclick="vdPendSave(${i})">Salvar</button><button class="b sm" onclick="VD.pending.splice(${i},1);renderVideos()">Ignorar</button></div></div>`).join('')}</div>`;
+}
+async function vdPendSave(i) {
+  const id = $('#vdPend' + i).value; if (!id) return toast('Escolha o produto');
+  await vdNewFromResult(VD.pending[i], id); VD.pending.splice(i, 1); renderVideos();
 }
 
 /* ---------------- vendas (API de afiliados) ---------------- */
@@ -110,15 +179,18 @@ function vdMetrics(v) {
 const VD_SORTS = { commission: 'Comissão', views: 'Visualizações', eng: 'Engajamento', ctr: 'Cliques/visualização', orders: 'Pedidos', rpm: 'Comissão por mil visualizações', recent: 'Mais recentes' };
 async function renderVideos(reload) {
   const out = $('#videos .out');
+  await vdAutoRegister();
   let all = vdAll();
   const days = VD.period === 'tudo' ? 0 : +VD.period;
   if (days) all = all.filter((v) => !vdTs(v) || vdTs(v) >= Date.now() - days * 86400000);
-  const head = `<div class="bar">
+  const printBtn = `<div class="panelbox vdprint"><label class="b p" style="cursor:pointer;display:block;text-align:center">📷 Enviar print do Shopee Vídeo<input type="file" accept="image/*" multiple hidden onchange="vdPrints(this)"></label>
+      <p class="meta" style="display:block;margin:6px 0 0">Abra o painel do criador no Shopee Vídeo, tire print da lista de vídeos (pode mandar até 4) e envie aqui. A IA lê os números e atualiza tudo sozinha.</p><div id="vdPrintStatus">${VD.status || ''}</div></div>`;
+  const head = printBtn + vdPendingHtml() + `<div class="bar">
       <div class="f"><label>Vídeos postados nos últimos</label><select onchange="VD.period=this.value;renderVideos()">${[['7', '7 dias'], ['30', '30 dias'], ['90', '90 dias'], ['tudo', 'Todos']].map(([k, l]) => `<option value="${k}" ${VD.period === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="f"><label>Ordenar por</label><select onchange="VD.sort=this.value;renderVideos()">${Object.entries(VD_SORTS).map(([k, l]) => `<option value="${k}" ${VD.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <button class="b sm" style="align-self:flex-end" onclick="renderVideos(true)">Atualizar vendas</button></div>`;
   if (!vdAll().length) {
-    out.innerHTML = `<div class="empty">Nenhum vídeo registrado ainda.<br>Na aba <b>Para gravar</b>, marque o produto como <b>Postado</b> (ou toque em <b>Vídeos</b>) e preencha os números do painel do Shopee Vídeo.</div>`;
+    out.innerHTML = printBtn + vdPendingHtml() + `<div class="empty">Nenhum vídeo registrado ainda.<br>Quando postar, marque o produto como <b>Postado</b> na aba <b>Para gravar</b>: o vídeo é registrado sozinho. Depois é só mandar o print dos números aqui.</div>`;
     return;
   }
   out.innerHTML = head + '<div class="note">Carregando vendas da Shopee…</div>';
@@ -166,8 +238,8 @@ async function renderVideos(reload) {
           <span><b>${m.commission ? brl(m.commission) : '—'}</b>comissão${r.apiOrders && !r.direct ? '*' : ''}</span>
           <span><b>${m.rpm ? brl(m.rpm) : '—'}</b>por mil vis.</span>
         </div>
-        ${!m.views ? '<div class="meta warnline">Faltam os números do Shopee Vídeo</div>' : ''}
-        <div class="acts"><button class="b sm" onclick="openVideos('${esc(r.itemId)}')">Atualizar números</button></div>
+        ${!m.views ? '<div class="meta warnline">Sem números ainda: mande o print do Shopee Vídeo</div>' : ''}
+        <div class="acts"><button class="b sm" onclick="openVideos('${esc(r.itemId)}')">Editar à mão</button></div>
       </div></div>`;
   };
 
@@ -181,7 +253,7 @@ async function renderVideos(reload) {
       <div class="kpi"><small>Comissão dos vídeos</small><div>${brl(tot.commission)}</div></div>
       <div class="kpi"><small>Comissão por mil vis.</small><div>${tot.views ? brl(tot.commission / tot.views * 1000) : '—'}</div></div>
     </div>
-    ${missing ? `<div class="note warn">${missing} vídeo(s) sem visualizações preenchidas. Abra o painel do criador no Shopee Vídeo e toque em <b>Atualizar números</b>. Quanto mais vídeos com números, melhor a análise.</div>` : ''}
+    ${missing ? `<div class="note warn">${missing} vídeo(s) ainda sem números. Mande o print do painel do criador do Shopee Vídeo (botão no topo).</div>` : ''}
     <div class="panelbox"><div class="bar" style="margin:0"><h3 style="flex:1;margin:0">Análise com IA</h3><button class="b sm p" id="vdAiBtn" onclick="vdAnalyze()">${VD.ai ? 'Analisar de novo' : 'Analisar meus vídeos'}</button></div><div id="vdAi">${VD.ai ? vdAiHtml(VD.ai) : '<p class="meta" style="display:block">A IA lê os números abaixo e diz o que está funcionando e o que testar nos próximos vídeos.</p>'}</div></div>
     <h3 class="gridtitle">Ranking: ${VD_SORTS[key]}</h3>
     <div class="vdlist">${rows.map(card).join('')}</div>

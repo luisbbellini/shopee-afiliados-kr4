@@ -148,7 +148,7 @@
   .vdcard .fc{flex:1;min-width:0} .vdcard .t{font-weight:600;font-size:14px} .vdcard .rank{color:var(--accent);font-weight:700}
   .vdcard .meta{display:block;font-size:12px}
   .vdstats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0} .vdstats span{font-size:11px;color:var(--muted);display:flex;flex-direction:column} .vdstats b{font-size:14px;color:var(--ink)}
-  .warnline{color:var(--warn,#c80)} #videos .two{grid-template-columns:1fr} #videos .two>*,#videos .panelbox{min-width:0} #videos .tw{overflow-x:auto} #videos td,#videos th{white-space:nowrap}
+  .warnline{color:var(--warn,#c80)} #videos .two{grid-template-columns:1fr} .vdprint .b.p{font-size:16px;padding:14px} #videos .two>*,#videos .panelbox{min-width:0} #videos .tw{overflow-x:auto} #videos td,#videos th{white-space:nowrap}
   .vdai ul{margin:4px 0 8px;padding-left:18px} .vdai h4{margin:8px 0 2px;font-size:13px} .vdai p{margin:4px 0}
   .phcard{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:var(--soft)} .phcard img{width:100%;aspect-ratio:1;object-fit:cover;background:#fff} .phcard .lb{font-weight:600;font-size:13px;padding:6px 8px 0} .phcard .acts{padding:6px 8px 8px;display:flex;gap:6px;flex-wrap:wrap} #phOut .imggrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))} .phcard .acts .b{flex:1}
   .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
@@ -296,7 +296,7 @@
 
 <!-- PARA GRAVAR -->
 <section id="favs">
-  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, <b>edite a foto com IA</b> (fundo, modelo, estilo), gere o link com subId e baixe as fotos. Ao marcar <b>Postado</b>, registre o vídeo e os números dele para a aba <b>Vídeos</b>.</p>
+  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, <b>edite a foto com IA</b> (fundo, modelo, estilo), gere o link com subId e baixe as fotos. Ao marcar <b>Postado</b>, o vídeo é registrado sozinho para a aba <b>Vídeos</b>.</p>
   <div class="out"></div>
 </section>
 
@@ -318,7 +318,7 @@
 
 <!-- VÍDEOS -->
 <section id="videos">
-  <p class="intro">Analisador dos seus vídeos do <b>Shopee Vídeo</b>: ranking dos que mais deram resultado, comparação por <b>tipo de vídeo</b>, <b>dia</b>, <b>horário</b> e <b>produto</b>, e uma <b>análise com IA</b>. As vendas e a comissão vêm da Shopee; as visualizações, curtidas e cliques você copia do painel do criador do Shopee Vídeo (botão <b>Atualizar números</b>).</p>
+  <p class="intro">Analisador dos seus vídeos do <b>Shopee Vídeo</b>: ranking dos que mais deram resultado, comparação por <b>tipo de vídeo</b>, <b>dia</b>, <b>horário</b> e <b>produto</b>, e uma <b>análise com IA</b>. Quase tudo é automático: o vídeo é registrado quando você marca <b>Postado</b>, as vendas vêm da Shopee e os números (visualizações, curtidas, cliques) a IA lê de um <b>print</b> do painel do criador do Shopee Vídeo.</p>
   <div class="out"></div>
 </section>
 
@@ -602,12 +602,12 @@
 
     <details><summary>13. Analisador de vídeos</summary><div class="body">
       <ol>
-        <li>Na aba <b>Para gravar</b>, quando postar um vídeo, mude a etapa para <b>Postado</b>. Abre o cadastro do vídeo com a data e a hora já preenchidas, o tipo de vídeo e o gancho do roteiro.</li>
-        <li>De tempos em tempos (por exemplo, 1 dia e 7 dias depois de postar), abra o painel do criador no <b>Shopee Vídeo</b> e copie para o painel: visualizações, curtidas, comentários, compartilhamentos, cliques no produto e pedidos. Toque em <b>Vídeos</b> no produto ou em <b>Atualizar números</b> na aba Vídeos. Os campos salvam sozinhos.</li>
-        <li>A aba <b>Vídeos</b> mostra o ranking (por comissão, visualizações, engajamento, cliques…), a comparação por <b>tipo de vídeo</b>, <b>dia da semana</b>, <b>horário</b> e <b>produto</b>, e o botão <b>Analisar meus vídeos</b> (IA).</li>
-        <li><b>Comissão de cada vídeo:</b> vem da Shopee. Se a venda veio por um link com subId, ela é ligada exatamente ao vídeo. Sem subId, é ligada pelo produto e pela data (o vídeo mais recente daquele produto antes da compra) e aparece com *. Em <b>De onde vieram as vendas</b> dá para ver se as vendas estão vindo com subId.</li>
+        <li><b>Postou?</b> Na aba <b>Para gravar</b>, mude a etapa para <b>Postado</b>. O vídeo é registrado sozinho, com data, hora, tipo de vídeo e gancho do roteiro.</li>
+        <li><b>Números:</b> de tempos em tempos (ex.: 1 e 7 dias depois), abra o painel do criador no <b>Shopee Vídeo</b>, tire print da lista de vídeos e toque em <b>📷 Enviar print do Shopee Vídeo</b> na aba <b>Vídeos</b> (até 4 prints de uma vez). A IA lê visualizações, curtidas, comentários, compartilhamentos, cliques e pedidos e atualiza cada vídeo. Se não reconhecer algum, pede para você escolher o produto.</li>
+        <li><b>Vendas e comissão:</b> vêm sozinhas da Shopee. Com subId, a venda é ligada ao vídeo exato. Sem subId, pelo produto e pela data (aparece com *).</li>
+        <li>Depois de atualizar pelo print, a <b>análise com IA</b> roda sozinha: o que funcionou, o que atrapalhou e o que testar nos próximos vídeos. A aba também mostra o ranking e a comparação por tipo de vídeo, dia, horário e produto.</li>
         <li><b>Termos:</b> engajamento = (curtidas + comentários + compartilhamentos) ÷ visualizações. Cliques/vis. = cliques no produto ÷ visualizações. Comissão por mil vis. = quanto cada mil visualizações rendeu.</li>
-        <li>Com poucos vídeos (menos de 5) as conclusões ainda são fracas. Quanto mais vídeos com números, mais confiável fica.</li>
+        <li>Usa a mesma chave de IA do roteiro (⚙ Configurações). Com menos de uns 5 vídeos, as conclusões ainda são fracas.</li>
       </ol></div></details>
     <details><summary>14. Glossário</summary><div class="body">
       <ul>
@@ -663,7 +663,7 @@
 <div class="shade" id="vdShade" onclick="closeVideos()"></div>
 <div class="modal" id="vdModal" role="dialog" aria-labelledby="vdTitle">
   <div class="bar" style="margin:0"><h2 id="vdTitle" style="flex:1;font-size:15px">Vídeos</h2><button class="b sm" onclick="closeVideos()">Fechar</button></div>
-  <p class="meta" style="display:block">Cada vídeo postado deste produto. Os campos salvam sozinhos. Copie os números do painel do criador do Shopee Vídeo de tempos em tempos.</p>
+  <p class="meta" style="display:block">Ajuste à mão, se precisar. O mais fácil é mandar o print do Shopee Vídeo na aba <b>Vídeos</b>: a IA preenche estes números sozinha.</p>
   <div class="bar" style="margin:0"><button class="b sm p" onclick="vdAdd()">+ Adicionar vídeo</button></div>
   <div id="vdOut"></div>
 </div>
