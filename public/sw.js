@@ -1,6 +1,6 @@
 // Service worker mínimo: permite instalar como app. Sempre busca a versão mais nova
 // da internet; só usa a cópia guardada se estiver sem conexão. A API nunca é guardada.
-const CACHE = 'painel-v5';
+const CACHE = 'painel-v6';
 const SHELL = ['/', '/index.html', '/extras.js', '/videos.js', '/manifest.webmanifest', '/icon-192.png', '/instagram', '/instagram.html', '/instagram.webmanifest', '/ig-icon-192.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });

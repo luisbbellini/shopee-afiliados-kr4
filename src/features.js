@@ -399,13 +399,21 @@ export async function imagesZip(items = []) {
 export { storeEnabled, trending, recordSnapshot, extOf };
 
 // Analisador de vídeos: a IA lê o resumo das métricas e devolve conclusões e próximos passos.
-export async function videoInsights({ summary = {} } = {}, ai = {}) {
+export async function videoInsights({ summary = {}, kind = '' } = {}, ai = {}) {
   const apiKey = String(ai.key || '').trim();
   if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (ChatGPT, Claude ou Gemini).');
   const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
   if (!provider) throw new Error('Não reconheci a chave. Escolha a empresa da IA em ⚙ Configurações.');
   const data = JSON.stringify(summary).slice(0, 14000);
-  const prompt = `Você é analista de desempenho de vídeos curtos de uma afiliada da Shopee no Brasil (vídeos no Shopee Vídeo).
+  const prompt = kind === 'ads' ? `Você é gestor de tráfego pago de uma afiliada da Shopee no Brasil. Ela impulsiona vídeos de produtos com anúncios da Meta (Facebook/Instagram) que levam para o link de afiliada.
+Abaixo estão os anúncios do período com métricas da Meta (gasto, impressões, visualizações, % que assistiu até o fim, cliques no link, taxa de cliques, custo por clique) e a comissão/pedidos da Shopee ligados a cada anúncio (lucro = comissão − gasto; ROAS = comissão ÷ gasto; acima de 1 dá lucro). "ligado_a_vendas": false significa que não dá para saber as vendas daquele anúncio.
+Analise SOMENTE com base nesses números. Não invente dados. Com pouco gasto ou poucos cliques, diga que ainda é cedo para concluir.
+Diga quais anúncios manter/escalar, quais pausar ou ajustar (criativo, gancho, público), e padrões (ex.: vídeos com mais retenção vendem mais).
+
+Dados (JSON): ${data}
+
+Responda SOMENTE com JSON válido, em português do Brasil, frases curtas e práticas, citando o nome do anúncio:
+{"resumo":"2 ou 3 frases","melhores":["anúncio X: manter/escalar porque..."],"piores":["anúncio Y: pausar/ajustar porque..."],"padroes":["padrão observado com números"],"proximos_passos":["ação concreta"],"confianca":"baixa|média|alta e por quê"}` : `Você é analista de desempenho de vídeos curtos de uma afiliada da Shopee no Brasil (vídeos no Shopee Vídeo).
 Abaixo estão os vídeos dela com métricas digitadas por ela (visualizações, curtidas, comentários, compartilhamentos, cliques no produto, pedidos) e a comissão estimada pela API de afiliados.
 Analise SOMENTE com base nesses números. Não invente dados. Se houver poucos vídeos (menos de 5) ou poucos números, diga que a conclusão ainda é fraca e o que ela precisa registrar.
 Compare: formato (narração, primeira pessoa, só texto), gancho, produto/preço, dia da semana e horário da postagem, duração.

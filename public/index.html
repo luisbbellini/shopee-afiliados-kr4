@@ -149,7 +149,7 @@
   .vdcard .meta{display:block;font-size:12px}
   .vdstats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0} .vdstats span{font-size:11px;color:var(--muted);display:flex;flex-direction:column} .vdstats b{font-size:14px;color:var(--ink)}
   .warnline{color:var(--warn,#c80)} #videos .two{grid-template-columns:1fr} .vdprint .b.p{font-size:16px;padding:14px} #videos .two>*,#videos .panelbox{min-width:0} #videos .tw{overflow-x:auto} #videos td,#videos th{white-space:nowrap}
-  .vdai ul{margin:4px 0 8px;padding-left:18px} .vdai h4{margin:8px 0 2px;font-size:13px} .vdai p{margin:4px 0}
+  .vdai ul{margin:4px 0 8px;padding-left:18px} .pos{color:var(--ok)} .neg{color:var(--err)} .adtag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;margin:4px 0;background:var(--soft)} .adtag.ok{color:var(--ok)} .adtag.warn{color:var(--warn)} .adtag.err{color:var(--err)} .adtag.gray{color:var(--muted)} .adnothumb{width:72px;height:72px;border-radius:8px;background:var(--soft);flex:none} .vdstats{grid-template-columns:repeat(3,1fr)} .vdai h4{margin:8px 0 2px;font-size:13px} .vdai p{margin:4px 0}
   .phcard{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:var(--soft)} .phcard img{width:100%;aspect-ratio:1;object-fit:cover;background:#fff} .phcard .lb{font-weight:600;font-size:13px;padding:6px 8px 0} .phcard .acts{padding:6px 8px 8px;display:flex;gap:6px;flex-wrap:wrap} #phOut .imggrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))} .phcard .acts .b{flex:1}
   .srcrow{display:flex;gap:10px;align-items:center} .srcrow img{width:72px;height:90px;object-fit:cover;border-radius:8px;background:var(--soft)}
   .presets details{border-top:1px solid var(--line);padding:6px 0}
@@ -229,7 +229,7 @@
   <button data-t="favs">Para gravar</button>
   <button data-t="gallery">Galeria</button>
   <button data-t="earnings">Ganhos</button>
-  <button data-t="videos">Vídeos</button>
+  <button data-t="videos">Anúncios</button>
   <button data-t="shops">Lojas</button>
   <button data-t="offers">Campanhas Shopee</button>
   <button data-t="links">Gerar links</button>
@@ -296,7 +296,7 @@
 
 <!-- PARA GRAVAR -->
 <section id="favs">
-  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, <b>edite a foto com IA</b> (fundo, modelo, estilo), gere o link com subId e baixe as fotos. Ao marcar <b>Postado</b>, o vídeo é registrado sozinho para a aba <b>Vídeos</b>.</p>
+  <p class="intro">Sua lista de produtos escolhidos. Toque na <b>★</b> de qualquer produto para guardar aqui. Acompanhe as etapas (<b>a gravar → gravado → postado</b>), gere o <b>roteiro com IA</b>, <b>edite a foto com IA</b> (fundo, modelo, estilo), gere o link com subId e baixe as fotos.</p>
   <div class="out"></div>
 </section>
 
@@ -316,9 +316,9 @@
   <div class="out"><div class="empty">Toque em <b>Atualizar</b> para carregar.</div></div>
 </section>
 
-<!-- VÍDEOS -->
+<!-- ANÚNCIOS -->
 <section id="videos">
-  <p class="intro">Analisador dos seus vídeos do <b>Shopee Vídeo</b>: ranking dos que mais deram resultado, comparação por <b>tipo de vídeo</b>, <b>dia</b>, <b>horário</b> e <b>produto</b>, e uma <b>análise com IA</b>. Quase tudo é automático: o vídeo é registrado quando você marca <b>Postado</b>, as vendas vêm da Shopee e os números (visualizações, curtidas, cliques) a IA lê de um <b>print</b> do painel do criador do Shopee Vídeo.</p>
+  <p class="intro">Seus anúncios do <b>Gerenciador de Anúncios da Meta</b> (Facebook/Instagram) cruzados com as vendas da Shopee: quanto gastou, quanto voltou de comissão, <b>lucro</b> e <b>retorno (ROAS)</b> de cada anúncio, mais visualizações, quem assistiu até o fim, cliques e custo por clique. Tudo automático depois de conectar.</p>
   <div class="out"></div>
 </section>
 
@@ -600,15 +600,19 @@
       <p><b>Se aparecer "organization must be verified"</b>: a OpenAI exige verificar a conta para gerar imagens. Entre em <b>platform.openai.com → Settings → Organization → Verify</b> (pede um documento) e tente de novo depois de aprovado. Com chave do Gemini isso não é necessário.</p>
     </div></details>
 
-    <details><summary>13. Analisador de vídeos</summary><div class="body">
+    <details><summary>13. Anúncios da Meta (Facebook/Instagram)</summary><div class="body">
+      <p><b>O que mostra:</b> para cada anúncio, quanto gastou, as visualizações, quem assistiu até o fim, os cliques no link e o custo por clique (da Meta), e os pedidos e a comissão (da Shopee). Com isso calcula o <b>lucro</b> (comissão − gasto) e o <b>retorno (ROAS)</b> = comissão ÷ gasto: acima de 1x o anúncio dá lucro.</p>
+      <p><b>1. Gerar o token (uma vez só).</b> Precisa de um app na Meta (pode ser o mesmo do atendente do Instagram) e de acesso de administradora à conta de anúncios.</p>
       <ol>
-        <li><b>Postou?</b> Na aba <b>Para gravar</b>, mude a etapa para <b>Postado</b>. O vídeo é registrado sozinho, com data, hora, tipo de vídeo e gancho do roteiro.</li>
-        <li><b>Números:</b> de tempos em tempos (ex.: 1 e 7 dias depois), abra o painel do criador no <b>Shopee Vídeo</b>, tire print da lista de vídeos e toque em <b>📷 Enviar print do Shopee Vídeo</b> na aba <b>Vídeos</b> (até 4 prints de uma vez). A IA lê visualizações, curtidas, comentários, compartilhamentos, cliques e pedidos e atualiza cada vídeo. Se não reconhecer algum, pede para você escolher o produto.</li>
-        <li><b>Vendas e comissão:</b> vêm sozinhas da Shopee. Com subId, a venda é ligada ao vídeo exato. Sem subId, pelo produto e pela data (aparece com *).</li>
-        <li>Depois de atualizar pelo print, a <b>análise com IA</b> roda sozinha: o que funcionou, o que atrapalhou e o que testar nos próximos vídeos. A aba também mostra o ranking e a comparação por tipo de vídeo, dia, horário e produto.</li>
-        <li><b>Termos:</b> engajamento = (curtidas + comentários + compartilhamentos) ÷ visualizações. Cliques/vis. = cliques no produto ÷ visualizações. Comissão por mil vis. = quanto cada mil visualizações rendeu.</li>
-        <li>Usa a mesma chave de IA do roteiro (⚙ Configurações). Com menos de uns 5 vídeos, as conclusões ainda são fracas.</li>
-      </ol></div></details>
+        <li>Abra <b>business.facebook.com/settings</b> → <b>Usuários</b> → <b>Usuários do sistema</b> → <b>Adicionar</b> (nome: Painel, função: Administrador).</li>
+        <li>No usuário criado: <b>Atribuir ativos</b> → <b>Contas de anúncios</b> → marque a conta dela → permissão <b>Ver desempenho</b>. Se o app não aparecer no passo seguinte, atribua também o app em <b>Apps</b>.</li>
+        <li>Toque em <b>Gerar token</b> → escolha o app → validade <b>Nunca</b> → marque a permissão <b>ads_read</b> → <b>Gerar</b> → copie o token (começa com EAA).</li>
+      </ol>
+      <p class="meta">Alternativa rápida (vence em 60 dias): developers.facebook.com/tools/explorer → escolha o app → adicione a permissão <b>ads_read</b> → <b>Generate Access Token</b> → abra o token no <b>Depurador de token</b> e toque em <b>Estender token de acesso</b>.</p>
+      <p><b>2. Conectar.</b> ⚙ Configurações → <b>Anúncios da Meta</b> → cole o token → <b>Conectar</b> → escolha a conta → <b>Salvar conta</b>.</p>
+      <p><b>3. Ligar anúncio às vendas.</b> A Shopee só diz qual anúncio vendeu se o link tiver um <b>subId</b>. Use no anúncio o link do botão <b>Gerar link</b> (Para gravar), com um subId por anúncio (ex.: <i>vestido-anuncio1</i>). O painel reconhece sozinho pelo link do anúncio ou pelo subId no nome do anúncio. Se não reconhecer, ligue no seletor do card. Sem subId, a venda é ligada pelo produto e aparece com *.</p>
+      <p><b>4. Análise com IA:</b> o botão <b>Analisar meus anúncios</b> diz quais manter, escalar ou pausar e o que testar.</p>
+      <p class="meta">O painel só lê os dados (ads_read); nunca cria, altera ou pausa anúncios.</p></div></details>
     <details><summary>14. Glossário</summary><div class="body">
       <ul>
         <li><b>Comissão</b>: porcentagem do valor da venda que vai para o afiliado.</li>
@@ -656,17 +660,19 @@
     <div class="f" style="margin-top:8px"><label for="aiModel">Modelo (vazio = automático)</label><input id="aiModel" autocomplete="off" placeholder="ex: gpt-5-mini"></div></details>
   <div class="bar" style="margin:0"><button class="b p" onclick="saveAiKey()">Salvar e testar</button><button class="b" onclick="clearAiKey()">Apagar chave</button></div>
   <div id="aiMsg" class="note" style="margin:0" hidden></div>
+  <h3 class="sec">Anúncios da Meta (Facebook/Instagram)</h3>
+  <p class="meta" style="display:block">Token de acesso com a permissão <b>ads_read</b> (só leitura). Como gerar: Manual → 13. Fica salvo só neste aparelho.</p>
+  <div class="f"><label for="metaToken">Token de acesso</label>
+    <div style="display:flex;gap:6px"><input id="metaToken" type="password" autocomplete="off" spellcheck="false" style="flex:1" placeholder="EAA…">
+    <button class="b sm" type="button" onclick="const i=$('#metaToken');i.type=i.type==='password'?'text':'password'">Mostrar</button></div></div>
+  <div class="bar" style="margin:0"><button class="b p" onclick="metaConnect()">Conectar</button><button class="b" onclick="metaClear()">Desconectar</button></div>
+  <div id="metaAccBox" class="f" hidden><label for="metaAccount">Conta de anúncios</label><select id="metaAccount"></select>
+    <button class="b sm" style="margin-top:6px" onclick="metaSaveAccount()">Salvar conta</button></div>
+  <div id="metaMsg" class="note" style="margin:0" hidden></div>
   <h3 class="sec">Alertas diários</h3>
   <div id="alertBox" style="display:flex;flex-direction:column;gap:10px"></div>
 </div>
 
-<div class="shade" id="vdShade" onclick="closeVideos()"></div>
-<div class="modal" id="vdModal" role="dialog" aria-labelledby="vdTitle">
-  <div class="bar" style="margin:0"><h2 id="vdTitle" style="flex:1;font-size:15px">Vídeos</h2><button class="b sm" onclick="closeVideos()">Fechar</button></div>
-  <p class="meta" style="display:block">Ajuste à mão, se precisar. O mais fácil é mandar o print do Shopee Vídeo na aba <b>Vídeos</b>: a IA preenche estes números sozinha.</p>
-  <div class="bar" style="margin:0"><button class="b sm p" onclick="vdAdd()">+ Adicionar vídeo</button></div>
-  <div id="vdOut"></div>
-</div>
 <div class="shade" id="phShade" onclick="closePhotos()"></div>
 <div class="modal" id="phModal" role="dialog" aria-labelledby="phTitle">
   <div class="bar" style="margin:0"><h2 id="phTitle" style="flex:1;font-size:15px">Fotos e cores</h2><button class="b sm" onclick="closePhotos()">Fechar</button></div>
@@ -751,6 +757,8 @@ function credHeaders() {
   if (sec) { h['x-shopee-secret'] = sec; const app = lsGet('shopeeAppId'); if (app) h['x-shopee-app-id'] = app; }
   const ai = lsGet('aiKey');
   if (ai) { h['x-ai-key'] = ai; h['x-ai-provider'] = lsGet('aiProvider') || 'auto'; const m = lsGet('aiModel'); if (m) h['x-ai-model'] = m; }
+  const mt = lsGet('metaToken'), ma = lsGet('metaAccount');
+  if (mt) h['x-meta-token'] = mt; if (ma) h['x-meta-account'] = ma;
   return h;
 }
 function credSourceLabel() { return lsGet('shopeeSecret') ? 'Usando as credenciais salvas neste aparelho.' : 'Usando as credenciais configuradas na Vercel.'; }
@@ -759,6 +767,7 @@ function openCreds() {
   $('#credMsg').className = 'note'; $('#credMsg').textContent = credSourceLabel();
   $('#creds').classList.add('on'); $('#credShade').classList.add('on');
   if (typeof loadSettingsUI === 'function') loadSettingsUI();
+  if (typeof metaLoadUI === 'function') metaLoadUI();
 }
 function closeCreds() { $('#creds').classList.remove('on'); $('#credShade').classList.remove('on'); }
 async function saveCreds() {
