@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { ShopeeAffiliate, clearLearned } from './shopee.js';
 import { mockResponse } from './mock.js';
 import { findOpportunities } from './opportunities.js';
-import { favList, favSave, aiTest, editImage, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
+import { favList, favSave, aiTest, editImage, favRemove, getSettingsPublic, saveSettings, getSettings, notify, dailyJob, videoScript, videoInsights, fetchImage, imagesZip, slug, extOf, storeEnabled, trending, recordSnapshot } from './features.js';
 import { getJSON, itemHistory } from './store.js';
 
 const MOCK = process.env.SHOPEE_MOCK === '1';
@@ -79,6 +79,7 @@ const routes = {
   // Roteiro com IA (chave do aparelho ou da Vercel)
   'POST /api/script': async (b, ctx) => ({ script: await videoScript(b, ctx.ai) }),
   'POST /api/ai/test': async (b, ctx) => aiTest(ctx.ai),
+  'POST /api/video-insights': async (b, ctx) => ({ insights: await videoInsights(b, ctx.ai) }),
   'POST /api/image-edit': async (b, ctx) => {
     const r = await editImage(b, ctx.ai);
     return { __binary: r.buf, contentType: r.type, filename: `editada-${Date.now()}.${extOf(r.type)}`, info: r.model };
@@ -133,7 +134,7 @@ function mask(s = '') { return s.length > 6 ? s.slice(0, 4) + '…' + s.slice(-2
 // Executa uma rota. Retorna { status, body }.
 // Rotas que não precisam das credenciais da Shopee
 const NO_SHOPEE = new Set(['GET /api/status', 'POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history',
-  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/ai/test', 'POST /api/image-edit', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
+  'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/script', 'POST /api/video-insights', 'POST /api/ai/test', 'POST /api/image-edit', 'POST /api/image', 'POST /api/images-zip', 'POST /api/cache/clear']);
 const NEEDS_STORE = new Set(['POST /api/fav/list', 'POST /api/fav/save', 'POST /api/fav/remove', 'POST /api/trending', 'POST /api/history', 'POST /api/settings/get', 'POST /api/settings/save', 'POST /api/alerts/test', 'POST /api/cron/run', 'GET /api/cron']);
 const safeEq = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 

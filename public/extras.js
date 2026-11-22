@@ -88,7 +88,7 @@ function renderFavs() {
         <div class="t" onclick="openObj(FAV.get('${esc(x.itemId)}'))">${esc(x.productName)}</div>
         <div class="meta"><span>${brl(x.priceMin)}</span><span>Comissão ${pct(x.commissionRate)} · ${brl(x.commission)}</span>${x.score ? `<span class="score ${scoreCls(x.score)}">${x.score}</span>` : ''}</div>
         <div class="row2">
-          <select aria-label="Etapa" onchange="favUpsert({itemId:'${esc(x.itemId)}',status:this.value})">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${x.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <select aria-label="Etapa" onchange="favUpsert({itemId:'${esc(x.itemId)}',status:this.value});vdOnStatus('${esc(x.itemId)}',this.value)">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${x.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <input aria-label="Anotações" placeholder="Anotações…" value="${esc(x.notes || '')}" onchange="favUpsert({itemId:'${esc(x.itemId)}',notes:this.value})">
         </div>
         ${x.shortLink ? `<div class="meta">Link: <a href="${esc(x.shortLink)}" target="_blank" rel="noopener">${esc(x.shortLink)}</a>${x.subId ? ` · subId <b>${esc(x.subId)}</b>` : ''} <button class="b sm" onclick="copy('${esc(x.shortLink)}')">Copiar</button></div>` : ''}
@@ -97,6 +97,7 @@ function renderFavs() {
           <button class="b sm" onclick="favLink('${esc(x.itemId)}')">${x.shortLink ? 'Novo link' : 'Gerar link'}</button>
           <button class="b sm" data-imgcount="${esc(x.itemId)}" onclick="openImgEdit(FAV.get('${esc(x.itemId)}'))">Editar foto</button>
           <button class="b sm" onclick="openPhotos(FAV.get('${esc(x.itemId)}'))">Fotos e cores</button>
+          <button class="b sm" onclick="openVideos('${esc(x.itemId)}')">Vídeos${x.videos?.length ? ` (${x.videos.length})` : ''}</button>
           ${linkBtn(shopeeApp(x.productLink), 'Shopee')}${linkBtn(tiktokApp(x.productName), 'TikTok')}
           <button class="b sm" aria-label="Remover" onclick="if(confirm('Remover da lista?'))favDelete('${esc(x.itemId)}')">Remover</button>
         </div>

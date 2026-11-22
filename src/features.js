@@ -18,6 +18,7 @@ export async function favSave(item = {}) {
   for (const k of FAV_FIELDS) if (item[k] !== undefined) base[k] = item[k];
   const merged = { ...old, ...base, itemId: id };
   for (const k of ['status', 'notes', 'shortLink', 'subId', 'script']) if (item[k] !== undefined) merged[k] = item[k];
+  if (Array.isArray(item.videos)) merged.videos = item.videos.slice(0, 100);
   merged.status = STATUS.includes(merged.status) ? merged.status : 'a_gravar';
   merged.addedAt = old.addedAt || Date.now();
   merged.updatedAt = Date.now();
@@ -392,3 +393,34 @@ export async function imagesZip(items = []) {
   return makeZip(files);
 }
 export { storeEnabled, trending, recordSnapshot, extOf };
+
+// Analisador de vídeos: a IA lê o resumo das métricas e devolve conclusões e próximos passos.
+export async function videoInsights({ summary = {} } = {}, ai = {}) {
+  const apiKey = String(ai.key || '').trim();
+  if (!apiKey) throw new Error('Configure a chave da IA em ⚙ Configurações (ChatGPT, Claude ou Gemini).');
+  const provider = ai.provider && ai.provider !== 'auto' ? ai.provider : detectProvider(apiKey);
+  if (!provider) throw new Error('Não reconheci a chave. Escolha a empresa da IA em ⚙ Configurações.');
+  const data = JSON.stringify(summary).slice(0, 14000);
+  const prompt = `Você é analista de desempenho de vídeos curtos de uma afiliada da Shopee no Brasil (vídeos no Shopee Vídeo).
+Abaixo estão os vídeos dela com métricas digitadas por ela (visualizações, curtidas, comentários, compartilhamentos, cliques no produto, pedidos) e a comissão estimada pela API de afiliados.
+Analise SOMENTE com base nesses números. Não invente dados. Se houver poucos vídeos (menos de 5) ou poucos números, diga que a conclusão ainda é fraca e o que ela precisa registrar.
+Compare: formato (narração, primeira pessoa, só texto), gancho, produto/preço, dia da semana e horário da postagem, duração.
+
+Dados (JSON): ${data}
+
+Responda SOMENTE com JSON válido, em português do Brasil, frases curtas e práticas:
+{"resumo":"2 ou 3 frases sobre o que está funcionando","melhores":["por que o vídeo X foi bem (cite o título/produto)"],"piores":["o que pode ter atrapalhado no vídeo Y"],"padroes":["padrão observado com números"],"proximos_passos":["ação concreta para os próximos vídeos"],"confianca":"baixa|média|alta e por quê"}`;
+  const models = ai.model ? [ai.model] : MODELS[provider];
+  let last;
+  for (const model of models) {
+    last = await callAI(provider, apiKey, model, prompt);
+    if (last.ok) {
+      const m = last.text.match(/\{[\s\S]*\}/);
+      let out; try { out = JSON.parse(m ? m[0] : last.text); } catch { out = { resumo: last.text }; }
+      return { ...out, _ia: `${NAMES[provider]} · ${model}` };
+    }
+    if (!modelMissing(last.status, last.error) || ai.model) break;
+  }
+  const hint = last.status === 401 ? ' (chave inválida)' : last.status === 429 ? ' (sem créditos ou limite atingido)' : '';
+  throw new Error(`${NAMES[provider]}: ${last.error || 'HTTP ' + last.status}${hint}`);
+}
